@@ -1,0 +1,58 @@
+{
+  "client_submission_id": "3f6b1c9e-8a4d-4d52-9b0e-2f7a5c1d6e44",
+  "database": "independent_mechanic",
+  "captured_at": "2026-10-12T09:41:00+02:00",
+  "mechanic": {
+    "email": "thabo.mokoena@example.com",
+    "first_name": "Thabo",
+    "surname": "Mokoena",
+    "contact_number": "+27821234567",
+    "alternative_contact": "+27719876543",
+    "whatsapp_number": "+27821234567",
+    "preferred_language": "isiZulu",
+    "experience_years": 12,
+    "training_background": "Apprentice Mechanic",
+    "specialisations": [
+      "Engine Repairs",
+      "General Mechanical"
+    ],
+    "pays_rent": true
+  },
+  "workshop": {
+    "name": "Thabo Auto Repairs",
+    "business_type": "Independent Mechanic",
+    "region": "Gauteng North",
+    "town_suburb": "Alexandra",
+    "street_address": "14 London Road, Alexandra",
+    "gps": {
+      "latitude": -26.1034,
+      "longitude": 28.0961,
+      "accuracy_m": 8.5
+    },
+    "vehicles_per_day": "6-10",
+    "branding_requested": true,
+    "branding_notes": "Wants a Castrol sign on the front wall"
+  },
+  "supply_preferences": {
+    "main_oil_brand": "Castrol",
+    "reason_for_brand": "Customers ask for it by name",
+    "supply_channel": "Distributors/Wholesalers",
+    "supplier_shop_name": "Alex Auto Parts Wholesale"
+  },
+  "fastscan_status": {
+    "is_registered": true,
+    "registration_date": "2026-10-12",
+    "first_scan_completed": false,
+    "total_scans": 0,
+    "last_interaction_date": "2026-10-12",
+    "not_scanning_reason": "Hasn't started using app yet",
+    "notes": "Call back in two days"
+  },
+  "consent": {
+    "given": true,
+    "method": "signed_physical_form",
+    "text_version": "v1",
+    "evidence_ref": "photo-2026-10-12-0941-agent014.jpg",
+    "recorded_at": "2026-10-12T09:40:00+02:00"
+  }
+}

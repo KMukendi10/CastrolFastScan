@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  /* Castrol official brand colours — matched from castrol.com/en_za */
+  --castrol-green: #008443;       /* Primary Castrol green */
+  --castrol-red: #E2001A;         /* Castrol red — logo, accents */
+  --castrol-dark: #005228;        /* Deep green — hero panels, header */
+  --castrol-green-mid: #006b36;   /* Mid green — hover states */
+
+  --paper: #f5f5f5;               /* Light grey page background */
+  --card: #ffffff;
+  --ink: #111111;
+  --muted: #5a6360;
+  --line: #d4d9d6;
+  --red: var(--castrol-red);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--castrol-green);
+  --color-brand-mid: var(--castrol-green-mid);
+  --color-deep: var(--castrol-green);
+  --color-accent: var(--castrol-red);
+  --color-amber: var(--castrol-red);
+  --color-amber-soft: #fde8eb;
+  --color-alert: var(--castrol-red);
+  --font-sans: "Nunito", system-ui, sans-serif;
+  --font-display: "Nunito", system-ui, sans-serif;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 18px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3 { font-family: "Nunito", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.01em; }
+
+:focus-visible { outline: 3px solid var(--castrol-red); outline-offset: 2px; }
+
+a, button, [role="button"] { cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

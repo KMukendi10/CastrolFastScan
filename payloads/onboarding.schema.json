@@ -1,0 +1,655 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/fastscan-onboarding.json",
+  "title": "FastScan onboarding submission (three databases)",
+  "description": "One field capture. The `database` field says which of the three databases it belongs to: mechanics_profile, independent_mechanic or spares. The rep is NOT in the payload: the database stamps it from the logged-in user. Sent to the Postgres functions submit_onboarding (mechanics) or submit_spares_visit (spares).",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/mechanicSubmission"
+    },
+    {
+      "$ref": "#/$defs/sparesSubmission"
+    }
+  ],
+  "$defs": {
+    "e164": {
+      "type": "string",
+      "pattern": "^\\+[1-9][0-9]{7,14}$",
+      "description": "International format, e.g. +27821234567"
+    },
+    "region": {
+      "enum": [
+        "Gauteng North",
+        "Gauteng East",
+        "Gauteng South"
+      ]
+    },
+    "gps": {
+      "type": "object",
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "accuracy_m": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "description": "POPIA consent evidence. Server writes this to consent_log.",
+      "required": [
+        "given",
+        "method",
+        "text_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "given": {
+          "type": "boolean"
+        },
+        "method": {
+          "enum": [
+            "signed_physical_form",
+            "in_app_checkbox",
+            "sms_optin",
+            "whatsapp_optin",
+            "verbal_recorded",
+            "other"
+          ]
+        },
+        "text_version": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Which consent wording the person saw, e.g. v1"
+        },
+        "evidence_ref": {
+          "type": "string"
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "mechanicSubmission": {
+      "type": "object",
+      "required": [
+        "client_submission_id",
+        "database",
+        "captured_at",
+        "mechanic",
+        "workshop",
+        "consent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "client_submission_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Generated on the device. Server uses it for idempotency so offline retries never duplicate."
+        },
+        "database": {
+          "enum": [
+            "mechanics_profile",
+            "independent_mechanic"
+          ]
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mechanic": {
+          "type": "object",
+          "required": [
+            "email",
+            "first_name",
+            "surname",
+            "contact_number"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 254,
+              "description": "The mechanic ID"
+            },
+            "first_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "surname": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "contact_number": {
+              "$ref": "#/$defs/e164"
+            },
+            "alternative_contact": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/e164"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "whatsapp_number": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/e164"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "preferred_language": {
+              "enum": [
+                "English",
+                "Afrikaans",
+                "isiZulu",
+                "isiXhosa",
+                "Sesotho",
+                "Setswana",
+                "Sepedi",
+                "Xitsonga",
+                "Tshivenda",
+                "siSwati",
+                "isiNdebele",
+                "Other"
+              ]
+            },
+            "experience_years": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 70,
+              "description": "Decimals allowed (0.5 = six months). Server stores months."
+            },
+            "training_background": {
+              "enum": [
+                "Self-Taught Mechanic",
+                "Apprentice Mechanic",
+                "Workshop Owner",
+                "Trade-Tested Mechanic",
+                "NQF Level 5 or Higher",
+                "Qualified Artisan"
+              ]
+            },
+            "specialisations": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "Engine Repairs",
+                  "General Mechanical",
+                  "Auto Electrical",
+                  "Gearbox Specialist",
+                  "Bikes",
+                  "Taxi Maintenance",
+                  "Other"
+                ]
+              }
+            },
+            "pays_rent": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Independent Mechanics only"
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "workshop": {
+          "type": "object",
+          "required": [
+            "name",
+            "business_type",
+            "region"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "business_type": {
+              "enum": [
+                "Mechanical Workshop",
+                "Independent Mechanic",
+                "Independent Workshop",
+                "Auto Electrical",
+                "Auto Spares",
+                "Taxi Owner",
+                "Other"
+              ]
+            },
+            "region": {
+              "$ref": "#/$defs/region"
+            },
+            "town_suburb": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "street_address": {
+              "type": "string"
+            },
+            "gps": {
+              "$ref": "#/$defs/gps"
+            },
+            "vehicles_per_day": {
+              "enum": [
+                "0-5",
+                "6-10",
+                "11-15",
+                "16-20",
+                "20+"
+              ]
+            },
+            "branding_requested": {
+              "type": "boolean"
+            },
+            "branding_notes": {
+              "type": "string"
+            }
+          }
+        },
+        "supply_preferences": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "main_oil_brand": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "reason_for_brand": {
+              "type": "string"
+            },
+            "supply_channel": {
+              "enum": [
+                "Distributors/Wholesalers",
+                "Garage/Workshop Networks",
+                "Retail Stores",
+                "Online Suppliers",
+                "Spareshops",
+                "Other"
+              ]
+            },
+            "supplier_shop_name": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        },
+        "fastscan_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "is_registered": {
+              "type": "boolean"
+            },
+            "registration_date": {
+              "type": "string",
+              "format": "date"
+            },
+            "first_scan_completed": {
+              "type": "boolean",
+              "description": "As reported by the agent"
+            },
+            "total_scans": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_interaction_date": {
+              "type": "string",
+              "format": "date"
+            },
+            "service_kit_distributed": {
+              "type": "boolean"
+            },
+            "kit_items_given": {
+              "type": "string"
+            },
+            "incentive_distributed": {
+              "type": "boolean"
+            },
+            "not_scanning_reason": {
+              "enum": [
+                "Hasn't started using app yet",
+                "App technical issue / maintenance",
+                "Difficult to navigate / login issue",
+                "No answer / needs call back",
+                "Voicemail left",
+                "No space on phone",
+                "Hasn't bought new stock yet",
+                "Other"
+              ]
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "first_scan_completed": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "first_scan_completed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "total_scans": {
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "total_scans"
+                    ]
+                  }
+                ]
+              },
+              "then": {
+                "properties": {
+                  "is_registered": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "is_registered"
+                ]
+              }
+            },
+            {
+              "if": {
+                "not": {
+                  "properties": {
+                    "is_registered": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "is_registered"
+                  ]
+                }
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "registration_date"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "consent": {
+          "$ref": "#/$defs/consent"
+        }
+      },
+      "if": {
+        "properties": {
+          "database": {
+            "const": "mechanics_profile"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mechanic": {
+            "properties": {
+              "pays_rent": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    "sparesSubmission": {
+      "type": "object",
+      "required": [
+        "client_submission_id",
+        "database",
+        "captured_at",
+        "shop",
+        "visit",
+        "consent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "client_submission_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "database": {
+          "const": "spares"
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "shop": {
+          "type": "object",
+          "required": [
+            "trading_name",
+            "region",
+            "manager"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "trading_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "shop_type": {
+              "enum": [
+                "Spare Shop",
+                "Auto Parts Retailer",
+                "Workshop & Parts Shop"
+              ]
+            },
+            "region": {
+              "$ref": "#/$defs/region"
+            },
+            "area": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "address": {
+              "type": "string"
+            },
+            "gps": {
+              "$ref": "#/$defs/gps"
+            },
+            "years_in_operation": {
+              "enum": [
+                "1-3 years",
+                "4-7 years",
+                "8-15 years",
+                "15+ years"
+              ]
+            },
+            "manager": {
+              "type": "object",
+              "required": [
+                "email"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "first_name": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "surname": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 254
+                },
+                "contact_number": {
+                  "$ref": "#/$defs/e164"
+                },
+                "whatsapp_number": {
+                  "$ref": "#/$defs/e164"
+                }
+              }
+            }
+          }
+        },
+        "visit": {
+          "type": "object",
+          "required": [
+            "visit_date"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "visit_date": {
+              "type": "string",
+              "format": "date"
+            },
+            "stocks_castrol": {
+              "type": "boolean"
+            },
+            "castrol_stock_level": {
+              "enum": [
+                "Low",
+                "Medium",
+                "High"
+              ]
+            },
+            "branding_visibility": {
+              "enum": [
+                "None",
+                "Limited",
+                "Moderate",
+                "Strong"
+              ]
+            },
+            "products_stocked": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "Castrol GTX",
+                  "Castrol Magnatec",
+                  "Castrol EDGE",
+                  "Castrol Actevo",
+                  "Castrol Vecton",
+                  "Transmission Fluids",
+                  "Greases",
+                  "Coolants"
+                ]
+              }
+            },
+            "prices_zar": {
+              "type": "object",
+              "description": "Only prices actually seen. Leave a product out if it is not stocked. Never send 0.",
+              "propertyNames": {
+                "enum": [
+                  "5L Castrol GTX",
+                  "5L Castrol Magnatec Petrol",
+                  "5L Castrol Magnatec Petrol & Diesel",
+                  "5L Castrol EDGE",
+                  "5L Castrol Actevo",
+                  "1L Castrol GTX",
+                  "1L Castrol Magnatec (Petrol)",
+                  "1L Castrol Magnatec (Petrol & Diesel)",
+                  "1L Castrol EDGE",
+                  "1L Castrol Actevo"
+                ]
+              },
+              "additionalProperties": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "competitor_brands": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "Shell",
+                  "Engen",
+                  "Caltex/Havoline",
+                  "Liqui Moly",
+                  "Other"
+                ]
+              }
+            },
+            "strongest_sellers": {
+              "type": "string"
+            },
+            "most_customer_requests": {
+              "type": "string"
+            },
+            "most_mechanic_requests": {
+              "type": "string"
+            },
+            "serves_mechanics": {
+              "type": "boolean"
+            },
+            "mechanics_visiting_weekly": {
+              "enum": [
+                "1-10",
+                "11-25",
+                "26-50",
+                "50+"
+              ]
+            },
+            "can_refer_workshops": {
+              "type": "boolean"
+            },
+            "promo_sales_to_date": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "competitor_price_comparison": {
+              "type": "string"
+            },
+            "new_stock_received": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "consent": {
+          "$ref": "#/$defs/consent"
+        }
+      }
+    }
+  }
+}

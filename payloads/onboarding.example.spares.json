@@ -1,0 +1,60 @@
+{
+  "client_submission_id": "9a1d7e52-4c3b-4f60-8e21-5b6c0d2f7a18",
+  "database": "spares",
+  "captured_at": "2026-10-12T11:15:00+02:00",
+  "shop": {
+    "trading_name": "Sample Motor Spares",
+    "shop_type": "Spare Shop",
+    "region": "Gauteng East",
+    "area": "Tembisa",
+    "address": "38 Sample Street, Tembisa",
+    "gps": {
+      "latitude": -26.0205,
+      "longitude": 28.2003,
+      "accuracy_m": 6
+    },
+    "years_in_operation": "15+ years",
+    "manager": {
+      "first_name": "Naledi",
+      "surname": "Mahlangu",
+      "email": "naledi@example.com",
+      "contact_number": "+27760451573",
+      "whatsapp_number": "+27788620912"
+    }
+  },
+  "visit": {
+    "visit_date": "2026-10-12",
+    "stocks_castrol": true,
+    "castrol_stock_level": "Medium",
+    "branding_visibility": "Strong",
+    "products_stocked": [
+      "Castrol GTX",
+      "Castrol Magnatec",
+      "Greases"
+    ],
+    "prices_zar": {
+      "5L Castrol GTX": 488,
+      "5L Castrol Magnatec Petrol": 699,
+      "1L Castrol GTX": 199
+    },
+    "competitor_brands": [
+      "Shell",
+      "Engen"
+    ],
+    "strongest_sellers": "Shell",
+    "most_customer_requests": "Shell Helix",
+    "most_mechanic_requests": "Castrol GTX",
+    "serves_mechanics": true,
+    "mechanics_visiting_weekly": "26-50",
+    "can_refer_workshops": true,
+    "promo_sales_to_date": 0,
+    "competitor_price_comparison": "Shell Helix R428",
+    "new_stock_received": true,
+    "notes": "Mechanics ask how to tell fake from original Castrol"
+  },
+  "consent": {
+    "given": true,
+    "method": "in_app_checkbox",
+    "text_version": "v1"
+  }
+}
