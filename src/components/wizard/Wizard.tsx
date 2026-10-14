@@ -8,6 +8,7 @@ import { Banner, Button } from "@/components/ui";
 import type { Flow, Errors } from "./types";
 
 type Draft<S> = { id: string; step: number; s: S };
+type Completion = { duplicate: boolean; sheetSync: "syncing" | "synced" | "skipped" | "not-configured" | "failed"; sheetMessage?: string; recordId?: number };
 
 /** Runs a flow: client steps (amber) then rep steps (green). The draft lives in
  *  localStorage so a refresh or a dead battery does not lose the answers, and the
@@ -18,7 +19,7 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [fail, setFail] = useState("");
-  const [done, setDone] = useState<{ duplicate: boolean } | null>(null);
+  const [done, setDone] = useState<Completion | null>(null);
   const top = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
   const clientMode = step?.who === "client";
 
   const ctx = useMemo(() => (draft && lookups ? {
-    s: draft.s, e: errors, lk: lookups,
+    s: draft.s, e: errors, lk: lookups, submissionId: draft.id,
     set: (patch: Partial<S>) => setDraft((d) => (d ? { ...d, s: { ...d.s, ...patch } } : d)),
   } : null), [draft, lookups, errors]);
 
@@ -51,6 +52,16 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
       <div className="mx-auto grid size-20 place-items-center rounded-full bg-brand text-4xl text-white">✓</div>
       <h1 className="font-display text-4xl font-bold">{done.duplicate ? "Already saved" : "Saved"}</h1>
       <p className="text-lg text-muted">{label} is recorded under your name.</p>
+      {done.sheetSync === "syncing" && <p className="text-sm text-muted">Adding this registration to the Google Sheet…</p>}
+      {done.sheetSync === "synced" && <p className="text-sm font-semibold text-brand">This registration was also added to the Google Sheet.</p>}
+      {done.sheetSync === "skipped" && <p className="text-sm text-muted">This registration was left out of the Google Sheet because its row was previously deleted.</p>}
+      {done.sheetSync === "not-configured" && <p className="text-sm text-muted">Google Sheet sync is not set up yet. This registration is saved in FastScan.</p>}
+      {done.sheetSync === "failed" && (
+        <div className="space-y-2">
+          <p className="text-sm text-alert">Saved in FastScan, but the Google Sheet sync failed{done.sheetMessage ? `: ${done.sheetMessage}` : "."}</p>
+          {done.recordId && <Button variant="ghost" onClick={() => void syncSavedRecord(done.recordId!)}>Retry Google Sheet sync</Button>}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
         <Button onClick={() => { setDone(null); setFail(""); setErrors({}); setDraft({ id: uuid(), step: 0, s: flow.initial() }); top.current?.scrollIntoView(); }}>Capture another</Button>
         <Link href="/" className="grid min-h-14 place-items-center rounded-xl border-2 border-line bg-card px-6 text-lg font-semibold">Back to home</Link>
@@ -64,17 +75,43 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
     window.scrollTo({ top: 0 });
   }
 
+  async function syncSavedRecord(recordId: number) {
+    setDone((current) => current ? { ...current, sheetSync: "syncing", sheetMessage: undefined } : current);
+    try {
+      const { data: { session } } = await supabase().auth.getSession();
+      if (!session?.access_token) throw new Error("Sign in again before retrying the sync.");
+      const response = await fetch("/api/sheets-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ kind: flow.rpc === "submit_onboarding" ? "mechanic" : "spares", recordId }),
+      });
+      const result = await response.json() as { synced?: boolean; skipped?: boolean; configured?: boolean; error?: string; message?: string };
+      if (!response.ok) throw new Error(result.error ?? "Google Sheets sync failed.");
+      if (!result.configured) {
+        setDone((current) => current ? { ...current, sheetSync: "not-configured", sheetMessage: result.message } : current);
+        return;
+      }
+      setDone((current) => current ? { ...current, sheetSync: result.skipped ? "skipped" : result.synced ? "synced" : "failed", sheetMessage: result.error } : current);
+    } catch (error) {
+      setDone((current) => current ? { ...current, sheetSync: "failed", sheetMessage: error instanceof Error ? error.message : "Google Sheets sync failed." } : current);
+    }
+  }
+
   async function next() {
-    const e = step!.validate(draft!.s);
-    setErrors(e);
-    if (Object.keys(e).length) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    // Let reps preview every page without completing earlier pages. Validate
+    // the complete draft only when they try to save on the final page.
     if (!isLast) return go(draft!.step + 1);
 
-    // Last step: also re-check every earlier step, then save.
-    for (let i = 0; i < steps.length - 1; i++) {
-      const prev = steps[i].validate(draft!.s);
-      if (Object.keys(prev).length) { setErrors(prev); return go(i), setErrors(prev); }
+    for (let i = 0; i < steps.length; i++) {
+      const e = steps[i].validate(draft!.s);
+      if (Object.keys(e).length) {
+        setErrors(e);
+        setDraft((d) => (d ? { ...d, step: i } : d));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
+
     setBusy(true); setFail("");
     try {
       const { data, error } = await supabase().rpc(flow.rpc, { payload: flow.toPayload(draft!.s, draft!.id) });
@@ -86,7 +123,10 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
         return;
       }
       try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
-      setDone({ duplicate: !!(data as { duplicate?: boolean })?.duplicate });
+      const saved = data as { duplicate?: boolean; mechanic_id?: number; shop_id?: number };
+      const recordId = flow.rpc === "submit_onboarding" ? saved?.mechanic_id : saved?.shop_id;
+      setDone({ duplicate: !!saved?.duplicate, sheetSync: "not-configured", recordId });
+      if (recordId) void syncSavedRecord(recordId);
     } catch {
       setFail("No signal. Your answers are kept on this tablet. Try again when you are back online.");
     } finally { setBusy(false); }

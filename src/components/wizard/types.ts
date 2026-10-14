@@ -1,7 +1,7 @@
 import type { Lookups } from "@/lib/lookups";
 
 export type Errors = Record<string, string>;
-export type Ctx<S> = { s: S; set: (patch: Partial<S>) => void; e: Errors; lk: Lookups };
+export type Ctx<S> = { s: S; set: (patch: Partial<S>) => void; e: Errors; lk: Lookups; submissionId: string };
 export type Step<S> = {
   id: string;
   title: string;

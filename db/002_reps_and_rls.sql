@@ -395,6 +395,8 @@ GRANT SELECT         ON mechanics, workshops, workshop_supply_preferences, mecha
                         fastscan_status, consent_log, spares_shops, spares_visits,
                         spares_visit_products, spares_visit_competitors, spares_visit_prices,
                         profiles                                            TO authenticated;
+-- Server API routes use the service-role client to resolve the caller's rep profile.
+GRANT SELECT ON profiles TO service_role;
 -- UPDATE is column by column. Reps may correct the descriptive fields of their
 -- own records, but never: the owner of a row (only a manager, enforced by the
 -- prevent_owner_change trigger), which parent row it hangs off, the capture

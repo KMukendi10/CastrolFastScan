@@ -4,9 +4,10 @@ import { emailOk, toE164, todayISO } from "@/lib/format";
 import type { Flow, Step } from "./types";
 import { GpsField } from "./GpsField";
 import { ConsentBox } from "./ConsentBox";
+import { OtpVerification } from "./OtpVerification";
 
 export type MState = {
-  email: string; first_name: string; surname: string; contact: string; alt: string; whatsapp: string;
+  email: string; emailConfirm: string; emailVerified: boolean; first_name: string; surname: string; contact: string; contactConfirm: string; phoneVerified: boolean; alt: string; whatsapp: string;
   language: string; years: string; training: string; specs: string[]; pays_rent: boolean | null;
   w_name: string; business_type: string; region: string; town: string; address: string; vehicles: string;
   branding: boolean | null; branding_notes: string;
@@ -18,7 +19,7 @@ export type MState = {
 };
 
 const empty = (): MState => ({
-  email: "", first_name: "", surname: "", contact: "", alt: "", whatsapp: "", language: "", years: "", training: "",
+  email: "", emailConfirm: "", emailVerified: false, first_name: "", surname: "", contact: "", contactConfirm: "", phoneVerified: false, alt: "", whatsapp: "", language: "", years: "", training: "",
   specs: [], pays_rent: null, w_name: "", business_type: "", region: "", town: "", address: "", vehicles: "",
   branding: null, branding_notes: "", oil_brand: "", reason: "", channel: "", supplier: "", consent: false,
   lat: "", lon: "", acc: "", registered: null, first_scan: null, total_scans: "", kit: null, kit_items: "",
@@ -40,18 +41,24 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         req(s.first_name, "Enter the first name", "first_name", e);
         req(s.surname, "Enter the surname", "surname", e);
         if (!emailOk(s.email)) e.email = "Enter a valid email address";
+        else if (s.email.trim().toLowerCase() !== s.emailConfirm.trim().toLowerCase()) e.emailConfirm = "Email addresses do not match";
+        else if (!s.emailVerified) e.email = "Verify this email address using the code below";
         if (!toE164(s.contact)) e.contact = "Enter a cell number. Example: 082 123 4567";
+        else if (toE164(s.contact) !== toE164(s.contactConfirm)) e.contactConfirm = "Cell numbers do not match";
+        else if (!s.phoneVerified) e.contact = "Verify this cell number using the SMS code below";
         optPhone(s.alt, "alt", e); optPhone(s.whatsapp, "whatsapp", e);
         if (s.years && !(Number(s.years) >= 0 && Number(s.years) <= 70)) e.years = "Enter years between 0 and 70";
         return e;
       },
-      render: ({ s, set, e, lk }) => (
+      render: ({ s, set, e, lk, submissionId }) => (
         <>
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="First name" error={e.first_name}><TextInput autoComplete="off" value={s.first_name} onChange={(x) => set({ first_name: x.target.value })} /></Field>
             <Field label="Surname" error={e.surname}><TextInput autoComplete="off" value={s.surname} onChange={(x) => set({ surname: x.target.value })} /></Field>
-            <Field label="Email address" hint="This is your FastScan ID" error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
-            <Field label="Cell number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value })} /></Field>
+            <div><Field label="Email address" hint="This is your FastScan ID" error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value, emailVerified: false })} /></Field><OtpVerification key={`${submissionId}:email:${s.email}`} submissionId={submissionId} kind="email" contact={s.email.trim().toLowerCase()} verified={s.emailVerified} onVerified={(emailVerified) => set({ emailVerified })} /></div>
+            <Field label="Confirm email address" error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
+            <div><Field label="Cell number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
+            <Field label="Confirm cell number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
             <Field label="WhatsApp number" hint="Leave empty if it is the same" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>
             <Field label="Another number to reach you" error={e.alt}><TextInput type="tel" inputMode="tel" value={s.alt} onChange={(x) => set({ alt: x.target.value })} /></Field>
             <Field label="Preferred language"><Select value={s.language} onChange={(v) => set({ language: v })} options={LANGUAGES} /></Field>

@@ -5,7 +5,7 @@ import { Shell } from "@/components/Shell";
 import { DailyChart, type Day } from "@/components/DailyChart";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
-import { toXlsx, downloadXlsx, syncToLiveSheet } from "@/lib/xlsx";
+import { toXlsx, downloadXlsx } from "@/lib/xlsx";
 import { toCsv, download as downloadCsv } from "@/lib/csv";
 import { todayISO } from "@/lib/format";
 
@@ -16,13 +16,41 @@ type Rep = {
 };
 
 const sum = (a: Rep[], k: keyof Rep) => a.reduce((n, r) => n + Number(r[k] ?? 0), 0);
+type SheetPreview = { mechanics: Record<string, unknown>[]; spares: Record<string, unknown>[] };
+const cellText = (value: unknown) => value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+
+function PreviewTable({ title, rows }: { title: string; rows: Record<string, unknown>[] }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="font-semibold">{title} ({rows.length})</h3>
+      {rows.length === 0 ? <p className="text-sm text-muted">No saved rows.</p> : (
+        <div className="max-h-[24rem] overflow-auto rounded-xl border border-line">
+          <table className="w-full min-w-max text-left text-sm">
+            <thead className="sticky top-0 bg-paper text-muted">
+              <tr>{Object.keys(rows[0]).map((column) => <th key={column} className="whitespace-nowrap border-b border-line px-3 py-2 font-semibold">{column}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 10).map((row, i) => (
+                <tr key={i} className="border-b border-line last:border-0">
+                  {Object.keys(rows[0]).map((column) => <td key={column} className="max-w-64 px-3 py-2 align-top">{cellText(row[column])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 10 && <p className="border-t border-line px-3 py-2 text-xs text-muted">Showing 10 of {rows.length} rows.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Dash() {
   const [reps, setReps] = useState<Rep[] | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [err, setErr] = useState("");
+  const [sheetSyncMsg, setSheetSyncMsg] = useState("");
   const [busy, setBusy] = useState("");
-  const [syncMsg, setSyncMsg] = useState("");
+  const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
 
   useEffect(() => {
     supabase().from("v_rep_performance").select("*").eq("role", "rep").order("people_captured", { ascending: false })
@@ -46,7 +74,7 @@ function Dash() {
   } : null, [reps]);
 
   async function exportXlsx(view: "v_mechanic_flat" | "v_spares_latest", label: string) {
-    setBusy(view); setErr(""); setSyncMsg("");
+    setBusy(view); setErr(""); setSheetPreview(null);
     const { data, error } = await supabase().from(view).select("*").limit(50000);
     setBusy("");
     if (error) return setErr(error.message);
@@ -55,21 +83,47 @@ function Dash() {
   }
 
   async function exportCsv(view: "v_mechanic_flat" | "v_spares_latest", label: string) {
-    setBusy("csv-" + view); setErr(""); setSyncMsg("");
+    setBusy("csv-" + view); setErr(""); setSheetPreview(null);
     const { data, error } = await supabase().from(view).select("*").limit(50000);
     setBusy("");
     if (error) return setErr(error.message);
     downloadCsv(`${label}-${todayISO()}.csv`, toCsv(data as Record<string, unknown>[]));
   }
 
-  async function syncSheet(view: "v_mechanic_flat" | "v_spares_latest", sheetName: string) {
-    setBusy("sync-" + view); setErr(""); setSyncMsg("");
-    const { data, error } = await supabase().from(view).select("*").limit(50000);
+  async function previewSheet() {
+    setBusy("preview-all"); setErr(""); setSheetPreview(null);
+    const [mechanics, spares] = await Promise.all([
+      supabase().from("v_mechanic_flat").select("*").limit(50000),
+      supabase().from("v_spares_latest").select("*").limit(50000),
+    ]);
     setBusy("");
-    if (error) return setErr(error.message);
-    const rows = data as Record<string, unknown>[];
-    const result = await syncToLiveSheet(sheetName, rows);
-    setSyncMsg(result.message);
+    if (mechanics.error || spares.error) return setErr(mechanics.error?.message ?? spares.error?.message ?? "Could not load saved rows.");
+    setSheetPreview({
+      mechanics: mechanics.data as Record<string, unknown>[],
+      spares: spares.data as Record<string, unknown>[],
+    });
+  }
+
+  async function syncAllToLiveSheet(restoreMissing = false) {
+    if (restoreMissing && !window.confirm("Restore records that were previously synced but are now missing from the sheet? This will add those rows back from Supabase.")) return;
+    setBusy(restoreMissing ? "restore-missing" : "sync-all"); setErr(""); setSheetSyncMsg(""); setSheetPreview(null);
+    try {
+      const { data: { session } } = await supabase().auth.getSession();
+      if (!session?.access_token) throw new Error("Your session has expired. Sign in again.");
+      const response = await fetch("/api/sheets-sync/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ kind: "all", restoreMissing }),
+      });
+      const result = await response.json() as { mechanicsSynced?: number; sparesSynced?: number; skippedCount?: number; error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Google Sheet sync failed.");
+      const skipped = result.skippedCount ?? 0;
+      setSheetSyncMsg(`Synced ${result.mechanicsSynced ?? 0} mechanic(s) and ${result.sparesSynced ?? 0} spares shop(s) to the live Google Sheet.${skipped ? ` Skipped ${skipped} previously deleted record(s).` : ""}`);
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Could not sync to the live Google Sheet.");
+    } finally {
+      setBusy("");
+    }
   }
 
   return (
@@ -96,15 +150,51 @@ function Dash() {
           <Button variant="ghost" disabled={!!busy} onClick={() => exportCsv("v_spares_latest", "spares-shops")}>
             {busy === "csv-v_spares_latest" ? "Preparing…" : "Spares shops (CSV)"}
           </Button>
-          <Button variant="ghost" disabled={!!busy} onClick={() => syncSheet("v_mechanic_flat", "Mechanics")}>
-            {busy === "sync-v_mechanic_flat" ? "Syncing…" : "Sync mechanics to live sheet"}
-          </Button>
-          <Button variant="ghost" disabled={!!busy} onClick={() => syncSheet("v_spares_latest", "Spares Shops")}>
-            {busy === "sync-v_spares_latest" ? "Syncing…" : "Sync spares to live sheet"}
-          </Button>
         </div>
+        <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-card p-4">
+          <div>
+            <h2 className="font-display text-xl font-bold">Google Sheets</h2>
+            <p className="text-sm text-muted">Sync saved mechanics and spares records into their tabs in one workbook.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!!busy} onClick={() => void syncAllToLiveSheet()}>
+              {busy === "sync-all" ? "Syncing all records..." : "Sync all to live sheet"}
+            </Button>
+            <Button variant="ghost" disabled={!!busy} onClick={() => void syncAllToLiveSheet(true)}>
+              {busy === "restore-missing" ? "Restoring missing records..." : "Restore missing records"}
+            </Button>
+            <a
+              href="https://docs.google.com/spreadsheets/d/1dopguPdIfSEZV30jEzEAmgxRm6T_dhmNvF7MsBF4kYQ/edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-h-14 rounded-xl border-2 border-line bg-card px-6 text-lg font-semibold flex items-center hover:border-brand hover:bg-brand hover:text-white transition-all duration-150"
+            >
+              Open live sheet
+            </a>
+          </div>
+          {sheetSyncMsg && <p className="w-full text-sm font-semibold text-brand">{sheetSyncMsg}</p>}
+          <p className="w-full text-sm text-muted">Normal sync adds new records and updates rows that remain in the sheet. Rows you delete stay deleted; use “Restore missing records” only when you want them back.</p>
+          <div className="w-full">
+            <Button variant="ghost" disabled={!!busy} onClick={() => void previewSheet()}>
+              {busy === "preview-all" ? "Loading saved records..." : "Preview saved records"}
+            </Button>
+          </div>
+        </section>
       {err && <p className="mt-3 font-semibold text-alert">{err}</p>}
-      {syncMsg && <p className="mt-3 rounded-xl bg-amber-soft px-4 py-2 text-sm font-semibold text-ink">{syncMsg}</p>}
+
+      {sheetPreview && (
+        <section className="mt-4 space-y-3 rounded-2xl border border-line bg-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-2xl font-bold">Saved records preview</h2>
+            <Button variant="ghost" onClick={() => setSheetPreview(null)}>Close preview</Button>
+          </div>
+          <p className="text-sm text-muted">Preview from FastScan's saved database; syncing to Google Sheets is a separate action.</p>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <PreviewTable title="Mechanics" rows={sheetPreview.mechanics} />
+            <PreviewTable title="Spares shops" rows={sheetPreview.spares} />
+          </div>
+        </section>
+      )}
 
       {totals && (
         <dl className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
