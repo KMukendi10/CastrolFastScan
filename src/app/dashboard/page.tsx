@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { SessionGate } from "@/lib/session";
+import { useEffect, useMemo, useState } from "react";import { SessionGate } from "@/lib/session";
 import { Shell } from "@/components/Shell";
 import { DailyChart, type Day } from "@/components/DailyChart";
 import { supabase } from "@/lib/supabase";
@@ -76,8 +75,15 @@ function Dash() {
   return (
     <Shell title="Manager dashboard">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-4xl font-bold">Team performance</h1>
-        <div className="flex flex-wrap gap-2">
+        <div>
+          <h1 className="font-display text-4xl font-bold">Team performance</h1>
+        </div>
+        <Link href="/dashboard/reps" className="min-h-14 rounded-xl border-2 border-line bg-card px-6 text-lg font-semibold flex items-center hover:border-brand hover:bg-brand hover:text-white transition-all duration-150">
+          Manage reps
+        </Link>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="ghost" disabled={!!busy} onClick={() => exportXlsx("v_mechanic_flat", "mechanics")}>
             {busy === "v_mechanic_flat" ? "Preparing…" : "Mechanics (Excel)"}
           </Button>
@@ -97,7 +103,6 @@ function Dash() {
             {busy === "sync-v_spares_latest" ? "Syncing…" : "Sync spares to live sheet"}
           </Button>
         </div>
-      </div>
       {err && <p className="mt-3 font-semibold text-alert">{err}</p>}
       {syncMsg && <p className="mt-3 rounded-xl bg-amber-soft px-4 py-2 text-sm font-semibold text-ink">{syncMsg}</p>}
 
