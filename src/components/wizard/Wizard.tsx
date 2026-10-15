@@ -26,7 +26,7 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
     let d: Draft<S> | null = null;
     try { d = JSON.parse(localStorage.getItem(draftKey) ?? "null"); } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load the saved draft once on mount
-    setDraft(d ?? { id: uuid(), step: 0, s: flow.initial() });
+    setDraft(d ? { ...d, step: 0 } : { id: uuid(), step: 0, s: flow.initial() });
   }, [draftKey, flow]);
 
   useEffect(() => {
