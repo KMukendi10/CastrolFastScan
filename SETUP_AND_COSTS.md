@@ -68,13 +68,14 @@ Email OTP is not required for the current registration flow. Client forms requir
 
 ### 4. Google Sheets sync
 
-- Use the shared workbook and sign in with a Google account that has edit access.
+- Import the final Quorum workbook into Google Sheets and use a copy for testing. The current integration targets only its `WhatsApp Import` tab for eligible mechanic records; spares sync is not configured yet.
 - Paste `google-apps-script/Code.gs` into **Extensions → Apps Script**.
 - In **Project Settings → Script Properties**, create `FASTSCAN_SYNC_SECRET` with a long random secret.
+- Add `FASTSCAN_SPREADSHEET_ID` in Script Properties, using the ID from the Google Sheets URL.
 - Deploy a new **Web app** deployment that executes as the sheet owner. Copy the `/exec` URL.
 - Put that URL in `GOOGLE_APPS_SCRIPT_URL` and the same secret in `GOOGLE_SHEETS_SYNC_SECRET` on the Castrol FastScan server. These are server-only settings.
-- Make sure the workbook has the Mechanics Profile, Independent Mechanics, and Spares tabs. The script matches the template tab-name prefixes and keeps a hidden ID column for retry-safe updates.
-- Use the manager dashboard's single **Sync all to live sheet** button to send saved records in both categories. New successful registrations sync automatically. The sheet link opens the same workbook.
+- Make sure the workbook has a `WhatsApp Import` tab with its 15 headings in row 1. The script locates fields by heading, upserts by Mechanic ID, and checks consent and WhatsApp-number eligibility.
+- Use the manager dashboard's **Sync mechanics to WhatsApp Import** button to send eligible saved mechanic records. New eligible mechanic registrations sync after save. Add `NEXT_PUBLIC_GOOGLE_SHEET_URL` if managers should see the **Open WhatsApp Import sheet** link.
 - Share the workbook only with staff authorized to view client details.
 
 ### 5. Vercel production deployment
@@ -91,7 +92,8 @@ The complete variable list is in `.env.example`. For live use, the important gro
 - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - Email OTP (optional, not used by current forms): `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
 - SMS OTP and verification security: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `CONTACT_OTP_SECRET`
-- Google Sheet sync: `GOOGLE_APPS_SCRIPT_URL`, `GOOGLE_SHEETS_SYNC_SECRET`
+- Google Sheet sync: `GOOGLE_APPS_SCRIPT_URL`, `GOOGLE_SHEETS_SYNC_SECRET`, plus `FASTSCAN_SPREADSHEET_ID` in Apps Script properties
+- Optional manager sheet link: `NEXT_PUBLIC_GOOGLE_SHEET_URL`
 - Production security: `CONTACT_VERIFICATION_BYPASS=false`
 
 Use separate secrets for `CONTACT_OTP_SECRET` and `GOOGLE_SHEETS_SYNC_SECRET`. Do not send credentials in chat or commit `.env.local`; it is ignored by Git.

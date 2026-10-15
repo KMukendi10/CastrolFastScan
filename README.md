@@ -37,16 +37,16 @@ Stack: Next.js 16 (App Router) + Tailwind, Supabase (Postgres, Auth, Row Level S
 
 ## Connect registrations to the live Google Sheet
 
-Castrol FastScan can append or update each successfully saved registration in the shared test spreadsheet. The Apps Script maps the saved database row into the original workbook columns on the `1. Mechanics Profile...`, `Independent Mechanics...`, or `Spares` tab. It keeps the workbook's title, help row, and visible column layout, and adds a hidden ID column for safe retries. The Google Apps Script receiver is in `google-apps-script/Code.gs`.
+The current Google Apps Script mapping sends eligible mechanic registrations to the Quorum workbook's `WhatsApp Import` tab. It writes by column heading, combines the first and last names into `Full Name`, uses the mechanic email as `Mechanic ID`, and takes `Last Interaction` from the saved record. It only includes records with `POPIA Consent = Yes` and a valid, unique WhatsApp number. Spares sheet sync is not configured in this version. The receiver is in `google-apps-script/Code.gs`.
 
-1. Open the shared spreadsheet while signed in to the Google account that can edit it.
+1. Import the final `.xlsx` into Google Sheets and use a copy for testing. Confirm its `WhatsApp Import` tab has the 15 headings from the workbook on row 1.
 2. Open **Extensions -> Apps Script**, replace the editor contents with `google-apps-script/Code.gs`, and save.
-3. In Apps Script, open **Project Settings -> Script Properties -> Add script property**. Set the name to `FASTSCAN_SYNC_SECRET` and choose a long random value. Keep this value private.
-4. Choose **Deploy -> New deployment -> Web app**. Set **Execute as** to your account and **Who has access** to **Anyone**, then deploy and authorize the script. Copy the deployment URL ending in `/exec`.
+3. In Apps Script, open **Project Settings -> Script Properties** and add `FASTSCAN_SPREADSHEET_ID` (the ID from the Google Sheets URL) and `FASTSCAN_SYNC_SECRET` (a long random value). Keep the secret private.
+4. Choose **Deploy -> New deployment -> Web app**. Set **Execute as** to the sheet owner and **Who has access** to **Anyone**, then deploy and authorize the script. Copy the deployment URL ending in `/exec`.
 5. Put the deployment URL in `GOOGLE_APPS_SCRIPT_URL` and the same random value in `GOOGLE_SHEETS_SYNC_SECRET` in `.env.local`. Keep these server-only; do not add a `NEXT_PUBLIC_` prefix. Restart `npm run dev`.
-6. Submit a registration. A successful save will sync its saved database row into the matching tab. The success screen reports if sync worked and allows retry if it failed. The manager dashboard also has one **Sync all to live sheet** button to push saved mechanic and spares rows already in Supabase; repeating a sync updates matching rows instead of duplicating them.
+6. Sync a test mechanic from the app and confirm the values land under the correct headings. Existing rows are updated by `Mechanic ID`; a WhatsApp number already attached to a different ID is held out for review. New registrations are synced after save, and managers can sync existing mechanic records from the dashboard.
 
-The Apps Script is public so Castrol FastScan's server can call it, but it checks the shared secret before writing. Anyone with edit access to the spreadsheet can see the client data, so only share the spreadsheet with intended staff. Existing registrations are not sent automatically when you first set this up; use the manager dashboard sync buttons to send the saved rows, then new registrations sync when saved (or can be retried from the success screen). The workbook must have the template tabs; their numeric record counts in the names can differ because the script matches the tab-name prefixes.
+The Apps Script is public so Castrol FastScan's server can call it, but it checks the shared secret before writing. Anyone with edit access to the spreadsheet can see client data, so only share it with intended staff. Syncing is not live until the final workbook is imported to Google Sheets, its ID is configured, and the updated Apps Script deployment URL is added to the app.
 
 ## How it behaves
 

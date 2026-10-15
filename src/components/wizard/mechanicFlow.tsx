@@ -1,6 +1,6 @@
 import { Chips, Choice, Field, Select, TextArea, TextInput, YesNo } from "@/components/ui";
 import { LANGUAGES, VEHICLES, CONSENT_TEXT, CONSENT_VERSION, type Kind } from "@/lib/options";
-import { emailOk, toE164, todayISO } from "@/lib/format";
+import { emailOk, normalizeGps, toE164, todayISO } from "@/lib/format";
 import type { Flow, Step } from "./types";
 import { GpsField } from "./GpsField";
 import { ConsentBox } from "./ConsentBox";
@@ -57,19 +57,19 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
       render: ({ s, set, e, lk, submissionId }) => (
         <>
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="First name" error={e.first_name}><TextInput autoComplete="off" value={s.first_name} onChange={(x) => set({ first_name: x.target.value })} /></Field>
-            <Field label="Surname" error={e.surname}><TextInput autoComplete="off" value={s.surname} onChange={(x) => set({ surname: x.target.value })} /></Field>
-            <Field label="Email address" error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
+            <Field label="First name" required error={e.first_name}><TextInput autoComplete="off" value={s.first_name} onChange={(x) => set({ first_name: x.target.value })} /></Field>
+            <Field label="Surname" required error={e.surname}><TextInput autoComplete="off" value={s.surname} onChange={(x) => set({ surname: x.target.value })} /></Field>
+            <Field label="Email address" required error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
             <div>
-              <Field label="Confirm email address" error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
+              <Field label="Confirm email address" required error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
               {emailMatchStatus(s.email, s.emailConfirm) && <p role="status" aria-live="polite" className={`mt-1 text-sm font-semibold ${emailMatchStatus(s.email, s.emailConfirm) === "match" ? "text-brand" : "text-alert"}`}>
                 {emailMatchStatus(s.email, s.emailConfirm) === "match" ? "Email addresses match." : "Email addresses don’t match."}
               </p>}
             </div>
-            <div><Field label="Cell number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
-            <Field label="Confirm cell number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
+            <div><Field label="Cell number" required error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
+            <Field label="Confirm cell number" required error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
             <Field label="WhatsApp number" hint="Leave empty if it is the same" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>
-            <Field label="Another number to reach you" error={e.alt}><TextInput type="tel" inputMode="tel" value={s.alt} onChange={(x) => set({ alt: x.target.value })} /></Field>
+            <Field label="Another number to reach you" hint="Optional" error={e.alt}><TextInput type="tel" inputMode="tel" value={s.alt} onChange={(x) => set({ alt: x.target.value })} /></Field>
             <Field label="Preferred language"><Select value={s.language} onChange={(v) => set({ language: v })} options={LANGUAGES} /></Field>
             <Field label="Years of experience" error={e.years}><TextInput type="number" inputMode="decimal" min={0} max={70} value={s.years} onChange={(x) => set({ years: x.target.value })} /></Field>
           </div>
@@ -91,9 +91,9 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
       render: ({ s, set, e, lk }) => (
         <>
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Workshop name" error={e.w_name}><TextInput value={s.w_name} onChange={(x) => set({ w_name: x.target.value })} /></Field>
-            <Field label="Business type" error={e.business_type}><Select value={s.business_type} onChange={(v) => set({ business_type: v })} options={lk.businessTypes} /></Field>
-            <Field label="Region" error={e.region}><Select value={s.region} onChange={(v) => set({ region: v })} options={lk.regions} /></Field>
+            <Field label="Workshop name" required error={e.w_name}><TextInput value={s.w_name} onChange={(x) => set({ w_name: x.target.value })} /></Field>
+            <Field label="Business type" required error={e.business_type}><Select value={s.business_type} onChange={(v) => set({ business_type: v })} options={lk.businessTypes} /></Field>
+            <Field label="Region" required error={e.region}><Select value={s.region} onChange={(v) => set({ region: v })} options={lk.regions} /></Field>
             <Field label="Town or suburb"><TextInput value={s.town} onChange={(x) => set({ town: x.target.value })} /></Field>
           </div>
           <Field label="Street address"><TextInput value={s.address} onChange={(x) => set({ address: x.target.value })} /></Field>
@@ -154,7 +154,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         database: kind,
         captured_at: new Date().toISOString(),
         mechanic: {
-          email: s.email.trim(), first_name: s.first_name.trim(), surname: s.surname.trim(),
+          email: s.email.trim().toLowerCase(), first_name: s.first_name.trim(), surname: s.surname.trim(),
           contact_number: toE164(s.contact), alternative_contact: s.alt.trim() ? toE164(s.alt) : undefined,
           whatsapp_number: s.whatsapp.trim() ? toE164(s.whatsapp) : undefined,
           preferred_language: n(s.language), experience_years: s.years ? Number(s.years) : undefined,
@@ -164,7 +164,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         workshop: {
           name: s.w_name.trim(), business_type: s.business_type, region: s.region,
           town_suburb: n(s.town), street_address: n(s.address),
-          gps: s.lat && s.lon ? { latitude: Number(s.lat), longitude: Number(s.lon), accuracy_m: Number(s.acc) } : undefined,
+          gps: normalizeGps(s.lat, s.lon, s.acc),
           vehicles_per_day: n(s.vehicles), branding_requested: !!s.branding, branding_notes: s.branding ? n(s.branding_notes) : undefined,
         },
         supply_preferences: s.oil_brand || s.reason || s.channel || s.supplier ? {

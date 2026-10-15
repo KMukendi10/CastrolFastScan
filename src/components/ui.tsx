@@ -4,10 +4,12 @@ import { useId } from "react";
 export const inputCls =
   "w-full min-h-14 rounded-xl border-2 border-line bg-card px-4 text-lg outline-none hover:border-brand focus:border-brand transition-colors duration-150 disabled:opacity-60";
 
-export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
+export function Field({ label, hint, error, required = false, children }: { label: string; hint?: string; error?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-base font-semibold">{label}</span>
+      <span className="mb-1.5 block text-base font-semibold">
+        {label}{required && <><span aria-hidden="true" className="ml-1 text-brand">*</span><span className="sr-only"> (required)</span></>}
+      </span>
       {children}
       {hint && !error && <span className="mt-1 block text-sm text-muted">{hint}</span>}
       {error && <span role="alert" className="mt-1 block text-sm font-semibold text-alert">{error}</span>}

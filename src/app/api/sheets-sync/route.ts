@@ -42,12 +42,12 @@ export async function POST(req: Request) {
       body: JSON.stringify({ secret, kind: body.kind, recordId: body.recordId, row }),
       cache: "no-store",
     });
-    const result = await response.json().catch(() => null) as { synced?: boolean; skippedCount?: number; error?: string } | null;
+    const result = await response.json().catch(() => null) as { synced?: boolean; skippedCount?: number; skippedReasons?: string[]; error?: string } | null;
     if (!response.ok || !result?.synced) {
       console.error("[sheets-sync] Google Apps Script rejected the row", response.status, result?.error);
       return Response.json({ error: result?.error ?? "Google Sheets could not accept this registration." }, { status: 502 });
     }
-    return Response.json({ configured: true, synced: true, skipped: (result.skippedCount ?? 0) > 0 });
+    return Response.json({ configured: true, synced: true, skipped: (result.skippedCount ?? 0) > 0, message: result.skippedReasons?.[0] });
   } catch (error) {
     console.error("[sheets-sync] Sync request failed", error instanceof Error ? error.message : "unknown error");
     return Response.json({ error: "Could not sync this registration to Google Sheets." }, { status: 502 });
