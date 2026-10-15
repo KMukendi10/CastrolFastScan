@@ -2,7 +2,7 @@
 import { useId } from "react";
 
 export const inputCls =
-  "w-full min-h-14 rounded-xl border-2 border-line bg-card px-4 text-lg outline-none focus:border-brand transition-colors duration-150 disabled:opacity-60";
+  "w-full min-h-14 rounded-xl border-2 border-line bg-card px-4 text-lg outline-none hover:border-brand focus:border-brand transition-colors duration-150 disabled:opacity-60";
 
 export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (

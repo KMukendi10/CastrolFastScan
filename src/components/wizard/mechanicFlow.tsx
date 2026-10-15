@@ -28,6 +28,11 @@ const empty = (): MState => ({
 
 const req = (v: string, msg: string, k: string, e: Record<string, string>) => { if (!v.trim()) e[k] = msg; };
 const optPhone = (v: string, k: string, e: Record<string, string>) => { if (v.trim() && !toE164(v)) e[k] = "Check this number. Example: 082 123 4567"; };
+const emailMatchStatus = (email: string, confirmation: string) => {
+  if (!email.trim() || !confirmation.trim()) return null;
+  if (email.trim().toLowerCase() !== confirmation.trim().toLowerCase()) return "mismatch";
+  return emailOk(email) ? "match" : null;
+};
 
 export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
   const independent = kind === "independent_mechanic";
@@ -54,8 +59,13 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="First name" error={e.first_name}><TextInput autoComplete="off" value={s.first_name} onChange={(x) => set({ first_name: x.target.value })} /></Field>
             <Field label="Surname" error={e.surname}><TextInput autoComplete="off" value={s.surname} onChange={(x) => set({ surname: x.target.value })} /></Field>
-            <Field label="Email address" hint="Enter it again below to check for typing mistakes. No email code is sent." error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
-            <Field label="Confirm email address" error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
+            <Field label="Email address" error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
+            <div>
+              <Field label="Confirm email address" error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
+              {emailMatchStatus(s.email, s.emailConfirm) && <p role="status" aria-live="polite" className={`mt-1 text-sm font-semibold ${emailMatchStatus(s.email, s.emailConfirm) === "match" ? "text-brand" : "text-alert"}`}>
+                {emailMatchStatus(s.email, s.emailConfirm) === "match" ? "Email addresses match." : "Email addresses don’t match."}
+              </p>}
+            </div>
             <div><Field label="Cell number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
             <Field label="Confirm cell number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
             <Field label="WhatsApp number" hint="Leave empty if it is the same" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>

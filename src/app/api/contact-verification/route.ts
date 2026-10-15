@@ -55,8 +55,12 @@ async function twilio(path: "Verifications" | "VerificationCheck", params: Recor
     body: new URLSearchParams(params),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.message ?? "The SMS service could not process the request");
-  return result as { status?: string };
+  if (!response.ok) {
+    const code = result.code ? ` (Twilio code ${result.code})` : "";
+    const message = result.message ?? result.error_message;
+    throw new Error(message ? `${message}${code}` : `Twilio Verify returned HTTP ${response.status}${code}. Check Twilio Monitor > Logs > Verify for details.`);
+  }
+  return result as { status?: string; code?: number; message?: string; error_message?: string };
 }
 
 async function sendEmail(contact: string, code: string) {

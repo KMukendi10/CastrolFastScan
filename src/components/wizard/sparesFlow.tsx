@@ -25,6 +25,12 @@ const empty = (): SState => ({
   new_stock: null, notes: "",
 });
 
+const emailMatchStatus = (email: string, confirmation: string) => {
+  if (!email.trim() || !confirmation.trim()) return null;
+  if (email.trim().toLowerCase() !== confirmation.trim().toLowerCase()) return "mismatch";
+  return emailOk(email) ? "match" : null;
+};
+
 export function sparesFlow(): Flow<SState> {
   const steps: Step<SState>[] = [
     {
@@ -56,8 +62,13 @@ export function sparesFlow(): Flow<SState> {
           <div className="md:col-span-2"><Field label="Years in operation"><Choice value={s.years_op} onChange={(v) => set({ years_op: v })} options={YEARS_OP} /></Field></div>
           <Field label="Manager first name" error={e.m_first}><TextInput value={s.m_first} onChange={(x) => set({ m_first: x.target.value })} /></Field>
           <Field label="Manager surname" error={e.m_surname}><TextInput value={s.m_surname} onChange={(x) => set({ m_surname: x.target.value })} /></Field>
-          <Field label="Manager email" hint="Enter it again below to check for typing mistakes. No email code is sent." error={e.m_email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_email} onChange={(x) => set({ m_email: x.target.value })} /></Field>
-          <Field label="Confirm manager email" error={e.m_emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_emailConfirm} onChange={(x) => set({ m_emailConfirm: x.target.value })} /></Field>
+          <Field label="Manager email" error={e.m_email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_email} onChange={(x) => set({ m_email: x.target.value })} /></Field>
+          <div>
+            <Field label="Confirm manager email" error={e.m_emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_emailConfirm} onChange={(x) => set({ m_emailConfirm: x.target.value })} /></Field>
+            {emailMatchStatus(s.m_email, s.m_emailConfirm) && <p role="status" aria-live="polite" className={`mt-1 text-sm font-semibold ${emailMatchStatus(s.m_email, s.m_emailConfirm) === "match" ? "text-brand" : "text-alert"}`}>
+              {emailMatchStatus(s.m_email, s.m_emailConfirm) === "match" ? "Email addresses match." : "Email addresses don’t match."}
+            </p>}
+          </div>
           <div><Field label="Shop phone number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field>{s.contact.trim() && <OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} />}</div>
           <Field label="Confirm shop phone number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
           <Field label="WhatsApp number" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>

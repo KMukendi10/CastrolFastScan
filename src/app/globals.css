@@ -44,6 +44,10 @@ h1, h2, h3 { font-family: "Nunito", system-ui, sans-serif; font-weight: 800; let
 
 :focus-visible { outline: 3px solid var(--castrol-red); outline-offset: 2px; }
 
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline-color: var(--castrol-green);
+}
+
 a, button, [role="button"] { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
