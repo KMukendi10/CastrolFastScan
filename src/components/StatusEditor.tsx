@@ -33,10 +33,10 @@ export function StatusEditor({ mechanicId, init, consent, onSaved }: { mechanicI
 
   return (
     <section className="space-y-5 rounded-2xl bg-card p-5">
-      <h2 className="font-display text-2xl font-bold">Update FastScan status</h2>
+      <h2 className="font-display text-2xl font-bold">Update Castrol FastScan status</h2>
       {msg && <Banner tone={msg.tone}>{msg.text}</Banner>}
       {!consent && <Banner tone="info">No permission on file. This client cannot be registered.</Banner>}
-      <Field label="Registered on FastScan?"><YesNo value={s.registered} onChange={(v) => setS({ ...s, registered: !!v })} /></Field>
+      <Field label="Registered on Castrol FastScan?"><YesNo value={s.registered} onChange={(v) => setS({ ...s, registered: !!v })} /></Field>
       <Field label="Completed a first scan?"><YesNo value={s.first_scan} onChange={(v) => setS({ ...s, first_scan: !!v })} /></Field>
       <Field label="Total scans"><TextInput type="number" inputMode="numeric" min={0} value={s.scans} onChange={(e) => setS({ ...s, scans: e.target.value })} /></Field>
       <Field label="Service kit handed over?"><YesNo value={s.kit} onChange={(v) => setS({ ...s, kit: v })} /></Field>

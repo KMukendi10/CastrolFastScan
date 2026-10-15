@@ -7,7 +7,7 @@ import { ConsentBox } from "./ConsentBox";
 import { OtpVerification } from "./OtpVerification";
 
 export type MState = {
-  email: string; emailConfirm: string; emailVerified: boolean; first_name: string; surname: string; contact: string; contactConfirm: string; phoneVerified: boolean; alt: string; whatsapp: string;
+  email: string; emailConfirm: string; first_name: string; surname: string; contact: string; contactConfirm: string; phoneVerified: boolean; alt: string; whatsapp: string;
   language: string; years: string; training: string; specs: string[]; pays_rent: boolean | null;
   w_name: string; business_type: string; region: string; town: string; address: string; vehicles: string;
   branding: boolean | null; branding_notes: string;
@@ -19,7 +19,7 @@ export type MState = {
 };
 
 const empty = (): MState => ({
-  email: "", emailConfirm: "", emailVerified: false, first_name: "", surname: "", contact: "", contactConfirm: "", phoneVerified: false, alt: "", whatsapp: "", language: "", years: "", training: "",
+  email: "", emailConfirm: "", first_name: "", surname: "", contact: "", contactConfirm: "", phoneVerified: false, alt: "", whatsapp: "", language: "", years: "", training: "",
   specs: [], pays_rent: null, w_name: "", business_type: "", region: "", town: "", address: "", vehicles: "",
   branding: null, branding_notes: "", oil_brand: "", reason: "", channel: "", supplier: "", consent: false,
   lat: "", lon: "", acc: "", registered: null, first_scan: null, total_scans: "", kit: null, kit_items: "",
@@ -42,7 +42,6 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         req(s.surname, "Enter the surname", "surname", e);
         if (!emailOk(s.email)) e.email = "Enter a valid email address";
         else if (s.email.trim().toLowerCase() !== s.emailConfirm.trim().toLowerCase()) e.emailConfirm = "Email addresses do not match";
-        else if (!s.emailVerified) e.email = "Verify this email address using the code below";
         if (!toE164(s.contact)) e.contact = "Enter a cell number. Example: 082 123 4567";
         else if (toE164(s.contact) !== toE164(s.contactConfirm)) e.contactConfirm = "Cell numbers do not match";
         else if (!s.phoneVerified) e.contact = "Verify this cell number using the SMS code below";
@@ -55,7 +54,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="First name" error={e.first_name}><TextInput autoComplete="off" value={s.first_name} onChange={(x) => set({ first_name: x.target.value })} /></Field>
             <Field label="Surname" error={e.surname}><TextInput autoComplete="off" value={s.surname} onChange={(x) => set({ surname: x.target.value })} /></Field>
-            <div><Field label="Email address" hint="This is your FastScan ID" error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value, emailVerified: false })} /></Field><OtpVerification key={`${submissionId}:email:${s.email}`} submissionId={submissionId} kind="email" contact={s.email.trim().toLowerCase()} verified={s.emailVerified} onVerified={(emailVerified) => set({ emailVerified })} /></div>
+            <Field label="Email address" hint="Enter it again below to check for typing mistakes. No email code is sent." error={e.email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.email} onChange={(x) => set({ email: x.target.value })} /></Field>
             <Field label="Confirm email address" error={e.emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.emailConfirm} onChange={(x) => set({ emailConfirm: x.target.value })} /></Field>
             <div><Field label="Cell number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
             <Field label="Confirm cell number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
@@ -108,7 +107,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
       render: ({ s, set }) => <ConsentBox checked={s.consent} onChange={(v) => set({ consent: v })} />,
     },
     {
-      id: "rep", title: "FastScan status", who: "rep",
+      id: "rep", title: "Castrol FastScan status", who: "rep",
       intro: "Hand the tablet back. This part is for the sales rep.",
       validate: (s) => {
         const e: Record<string, string> = {};
@@ -120,14 +119,14 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
       render: ({ s, set, e, lk }) => (
         <>
           <Field label="Workshop location"><GpsField value={{ lat: s.lat, lon: s.lon, acc: s.acc }} onChange={(g) => set(g)} /></Field>
-          <Field label="Registered on FastScan?" error={e.registered}><YesNo value={s.registered} onChange={(v) => set({ registered: v })} /></Field>
+          <Field label="Registered on Castrol FastScan?" error={e.registered}><YesNo value={s.registered} onChange={(v) => set({ registered: v })} /></Field>
           <Field label="Has completed a first scan?"><YesNo value={s.first_scan} onChange={(v) => set({ first_scan: v })} /></Field>
           <Field label="Total scans so far" error={e.total_scans}><TextInput type="number" inputMode="numeric" min={0} value={s.total_scans} onChange={(x) => set({ total_scans: x.target.value })} /></Field>
           {!(Number(s.total_scans) > 0) && <Field label="Why not scanning yet?"><Select value={s.not_scanning} onChange={(v) => set({ not_scanning: v })} options={lk.notScanning} /></Field>}
           <Field label="Service kit handed over?"><YesNo value={s.kit} onChange={(v) => set({ kit: v })} /></Field>
           {s.kit && <Field label="Items given"><TextInput value={s.kit_items} onChange={(x) => set({ kit_items: x.target.value })} /></Field>}
           <Field label="Incentive handed over?"><YesNo value={s.incentive} onChange={(v) => set({ incentive: v })} /></Field>
-          <Field label="FastScan notes"><TextArea value={s.fs_notes} onChange={(x) => set({ fs_notes: x.target.value })} /></Field>
+          <Field label="Castrol FastScan notes"><TextArea value={s.fs_notes} onChange={(x) => set({ fs_notes: x.target.value })} /></Field>
         </>
       ),
     },

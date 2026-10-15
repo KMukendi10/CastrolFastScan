@@ -1,4 +1,4 @@
-# FastScan setup and cost guide
+# Castrol FastScan setup and cost guide
 
 **Prepared:** 14 October 2026  
 **Currency:** Prices below are listed in USD where providers publish a public USD price. Your South African billing currency, exchange rate, VAT, carrier charges, and provider price changes can affect the final amount.
@@ -7,17 +7,17 @@
 
 | Service | Needed for | Cost to budget |
 |---|---|---:|
-| Supabase | FastScan database, rep sign-in, and saved registrations | Free for testing; Pro starts at **$25/month** for a production project. Free projects may pause after a week of low activity. [Pricing](https://supabase.com/pricing) |
+| Supabase | Castrol FastScan database, rep sign-in, and saved registrations | Free for testing; Pro starts at **$25/month** for a production project. Free projects may pause after a week of low activity. [Pricing](https://supabase.com/pricing) |
 | Vercel | Hosting the live Next.js application | Free Hobby is limited to personal, non-commercial use. For a business deployment, Pro is **$20/month for one user**, with more for additional paid seats or usage. [Plans](https://vercel.com/pricing), [Hobby terms](https://vercel.com/docs/plans/hobby) |
-| Resend | Sending email verification codes | Free: **3,000 emails/month**, with a **100/day** limit. Pro is **$20/month** for 50,000 emails/month if you outgrow the free allowance. [Pricing](https://resend.com/pricing) |
+| Resend | Optional email verification (not used by the current registration forms) | No Resend subscription is needed for the current form flow. If enabled later: Free **3,000 emails/month**, with a **100/day** limit; Pro is **$20/month** for 50,000 emails/month. [Pricing](https://resend.com/pricing) |
 | Twilio Verify | Sending and checking SMS OTP codes | Usage-based. Verify is **$0.05 per successful verification**, plus the SMS delivery charge. Twilio lists outbound SMS to South Africa at **$0.1355 per SMS segment**; one successful OTP sent in one SMS is therefore about **$0.1855**, before carrier charges and tax. Each resend can add another SMS charge. [Verify pricing](https://www.twilio.com/en-us/verify/pricing), [South Africa SMS pricing](https://www.twilio.com/en-us/sms/pricing/za) |
 | Google Sheets + Apps Script | The shared registration workbook and its sync receiver | **$0** with a Google account, within Apps Script quotas. No Google Workspace subscription or paid Google Cloud plan is required for this setup. Consumer accounts have 20,000 URL Fetch calls/day and a six-minute maximum per script execution. [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas) |
-| ChatGPT | FastScan operation | **Not required.** Your ChatGPT plan does not control FastScan’s Google Sheets connection. |
-| Custom domain | Email sender identity and/or a branded app URL | Optional if you already own one. Otherwise it is a separate, variable annual registrar cost. A domain must be verified with Resend to send production email OTPs reliably. |
+| ChatGPT | Castrol FastScan operation | **Not required.** Your ChatGPT plan does not control Castrol FastScan’s Google Sheets connection. |
+| Custom domain | Optional email sender identity and/or a branded app URL | Not needed for the current form flow. A domain must be verified with Resend before sending production email OTPs if email verification is enabled later. |
 
 Google Workspace is optional. A personal Google account can own the test workbook and Apps Script deployment. If you want business email, managed accounts, or organization administration, Workspace is an extra subscription; its public US Business Starter price is $7/user/month with an annual commitment or $8.40/user/month on a flexible plan. Local prices and offers can differ. [Workspace plans](https://knowledge.workspace.google.com/admin/getting-started/editions/business-editions)
 
-FastScan uses Resend for email OTP and Twilio Verify for SMS OTP. Email OTP usage is included in Resend's email quota; Twilio Verify's $0.05 verification fee applies to SMS OTP verification, not the email OTP sent through Resend.
+The current forms use Twilio Verify for SMS OTP. Email addresses are required and confirmed with a second entry, but are not OTP-verified. Resend can be configured later if the business wants email OTP; Twilio Verify's $0.05 fee applies to successful SMS OTP verification, plus the SMS delivery charge.
 
 ## Monthly budget examples
 
@@ -46,14 +46,16 @@ For example, 100 successful SMS OTP verifications with one SMS each would be app
 
 ### 1. Supabase
 
-- Create the project and apply `db/001_schema.sql`, `db/002_reps_and_rls.sql`, `db/003_contact_verification.sql`, and `db/004_profile_service_access.sql` in order.
+- Create the project and apply `db/001_schema.sql`, `db/002_reps_and_rls.sql`, `db/003_contact_verification.sql`, `db/004_profile_service_access.sql`, and `db/005_email_confirmation_without_otp.sql` in order.
 - Disable public sign-ups. Create the rep and manager users yourself.
 - Keep the Supabase URL, public/publishable key, and server secret key from the same project.
 - For a live business deployment, use a plan that meets the required uptime, backup, and data-retention expectations; the Free plan can pause after inactivity.
 
-### 2. Email OTP with Resend
+### 2. Optional email OTP with Resend
 
-- Create a Resend account and verify a domain you control. Add the DNS records Resend provides (typically SPF and DKIM; configure DMARC for the domain as well).
+Email OTP is not required for the current registration flow. Client forms require an email address and a matching confirmation entry, while mechanics must verify their phone number by SMS.
+
+- If you later decide to enable email OTP, create a Resend account and verify a domain you control. Add the DNS records Resend provides (typically SPF and DKIM; configure DMARC for the domain as well).
 - Add `RESEND_API_KEY` and a sender on that verified domain in the server environment.
 - The free plan's limit is 3,000 emails/month and 100/day; budget for Pro if expected OTP traffic exceeds either cap.
 
@@ -70,16 +72,16 @@ For example, 100 successful SMS OTP verifications with one SMS each would be app
 - Paste `google-apps-script/Code.gs` into **Extensions → Apps Script**.
 - In **Project Settings → Script Properties**, create `FASTSCAN_SYNC_SECRET` with a long random secret.
 - Deploy a new **Web app** deployment that executes as the sheet owner. Copy the `/exec` URL.
-- Put that URL in `GOOGLE_APPS_SCRIPT_URL` and the same secret in `GOOGLE_SHEETS_SYNC_SECRET` on the FastScan server. These are server-only settings.
+- Put that URL in `GOOGLE_APPS_SCRIPT_URL` and the same secret in `GOOGLE_SHEETS_SYNC_SECRET` on the Castrol FastScan server. These are server-only settings.
 - Make sure the workbook has the Mechanics Profile, Independent Mechanics, and Spares tabs. The script matches the template tab-name prefixes and keeps a hidden ID column for retry-safe updates.
 - Use the manager dashboard's single **Sync all to live sheet** button to send saved records in both categories. New successful registrations sync automatically. The sheet link opens the same workbook.
 - Share the workbook only with staff authorized to view client details.
 
 ### 5. Vercel production deployment
 
-- Deploy the FastScan repository to Vercel and add all server variables from `.env.example` to the Vercel project's Production environment.
+- Deploy the Castrol FastScan repository to Vercel and add all server variables from `.env.example` to the Vercel project's Production environment.
 - Set `CONTACT_VERIFICATION_BYPASS=false` in production. Never copy a live Twilio, Resend, Supabase service-role, or Sheets sync secret into a `NEXT_PUBLIC_` variable.
-- For commercial FastScan use, select Vercel Pro rather than Hobby.
+- For commercial Castrol FastScan use, select Vercel Pro rather than Hobby.
 - If using a custom app domain, configure it in Vercel; its registration/renewal is a separate registrar cost.
 
 ## Environment variables to configure
@@ -87,8 +89,8 @@ For example, 100 successful SMS OTP verifications with one SMS each would be app
 The complete variable list is in `.env.example`. For live use, the important groups are:
 
 - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- Email OTP: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `CONTACT_OTP_SECRET`
-- SMS OTP: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`
+- Email OTP (optional, not used by current forms): `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
+- SMS OTP and verification security: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `CONTACT_OTP_SECRET`
 - Google Sheet sync: `GOOGLE_APPS_SCRIPT_URL`, `GOOGLE_SHEETS_SYNC_SECRET`
 - Production security: `CONTACT_VERIFICATION_BYPASS=false`
 
@@ -96,7 +98,7 @@ Use separate secrets for `CONTACT_OTP_SECRET` and `GOOGLE_SHEETS_SYNC_SECRET`. D
 
 ## Items with no separate subscription
 
-- ChatGPT Free or Plus is unrelated to the FastScan app's Google integration.
+- ChatGPT Free or Plus is unrelated to the Castrol FastScan app's Google integration.
 - The app's existing Excel/CSV downloads do not need Excel installed by clients; users can open exported files in compatible spreadsheet software.
 - No ChatGPT Google Drive connector is needed.
 - This Apps Script integration does not require a service account or a paid Google Sheets API project.

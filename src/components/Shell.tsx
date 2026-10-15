@@ -21,7 +21,7 @@ export function Shell({ children, title, back, bleed }: { children: React.ReactN
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-3">
           {back ? <Link href={back} className="grid min-h-12 min-w-12 place-items-center rounded-lg text-2xl" aria-label="Back">‹</Link> : null}
           <Link href="/" className="font-display text-2xl font-bold tracking-wide">
-            FastScan <span className="text-accent">Field</span>
+            Castrol FastScan <span className="text-accent">Field</span>
           </Link>
           {title && <span className="hidden text-lg text-white/70 sm:inline">{title}</span>}
           <span className="ml-auto text-base text-white/80">{p.full_name}</span>

@@ -17,6 +17,6 @@ export const isKind = (k: string): k is Kind => k in KIND_LABEL;
 
 // DRAFT wording. Have your legal team approve the real text before the pilot,
 // then change CONSENT_VERSION so every record shows which text was agreed to.
-export const CONSENT_VERSION = "v1-draft";
+export const CONSENT_VERSION = "v2-draft";
 export const CONSENT_TEXT =
-  "I agree that Castrol and its FastScan team may store my details (name, contact numbers, email, workshop or shop details and location) and contact me about FastScan, training and Castrol products. I understand I can ask to be removed at any time.";
+  "I agree that Castrol may store my details (name, contact numbers, email, workshop or shop details and location) and contact me about Castrol FastScan, training and Castrol products. I understand I can ask to be removed at any time.";

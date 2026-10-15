@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const { data: profile, error: profileError } = await admin.from("profiles")
       .select("role, active").eq("id", user.id).maybeSingle();
     if (profileError || !profile || !profile.active || !["rep", "manager"].includes(profile.role)) {
-      return Response.json({ error: "An active FastScan rep account is required to sync a registration." }, { status: 403 });
+      return Response.json({ error: "An active Castrol FastScan rep account is required to sync a registration." }, { status: 403 });
     }
 
     const body = await req.json() as SyncRequest;

@@ -55,10 +55,10 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
       {done.sheetSync === "syncing" && <p className="text-sm text-muted">Adding this registration to the Google Sheet…</p>}
       {done.sheetSync === "synced" && <p className="text-sm font-semibold text-brand">This registration was also added to the Google Sheet.</p>}
       {done.sheetSync === "skipped" && <p className="text-sm text-muted">This registration was left out of the Google Sheet because its row was previously deleted.</p>}
-      {done.sheetSync === "not-configured" && <p className="text-sm text-muted">Google Sheet sync is not set up yet. This registration is saved in FastScan.</p>}
+      {done.sheetSync === "not-configured" && <p className="text-sm text-muted">Google Sheet sync is not set up yet. This registration is saved in Castrol FastScan.</p>}
       {done.sheetSync === "failed" && (
         <div className="space-y-2">
-          <p className="text-sm text-alert">Saved in FastScan, but the Google Sheet sync failed{done.sheetMessage ? `: ${done.sheetMessage}` : "."}</p>
+          <p className="text-sm text-alert">Saved in Castrol FastScan, but the Google Sheet sync failed{done.sheetMessage ? `: ${done.sheetMessage}` : "."}</p>
           {done.recordId && <Button variant="ghost" onClick={() => void syncSavedRecord(done.recordId!)}>Retry Google Sheet sync</Button>}
         </div>
       )}

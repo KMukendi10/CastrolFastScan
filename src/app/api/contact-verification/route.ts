@@ -20,8 +20,8 @@ async function repAccessError(req: Request): Promise<string | null> {
     console.error("[contact-verification] Rep profile lookup failed", { reason, message: profileError.message });
     return `The rep profile lookup failed (${reason}). Confirm db/002_reps_and_rls.sql has been run in this Supabase project and retry.`;
   }
-  if (!data) return "This login has no FastScan rep profile. Ask a manager to check the account setup.";
-  if (!data.active) return "This FastScan account is inactive. Ask a manager to reactivate it.";
+  if (!data) return "This login has no Castrol FastScan rep profile. Ask a manager to check the account setup.";
+  if (!data.active) return "This Castrol FastScan account is inactive. Ask a manager to reactivate it.";
   return null;
 }
 
@@ -69,8 +69,8 @@ async function sendEmail(contact: string, code: string) {
     body: JSON.stringify({
       from,
       to: [contact],
-      subject: "Your FastScan verification code",
-      text: `Your FastScan verification code is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      subject: "Your Castrol FastScan verification code",
+      text: `Your Castrol FastScan verification code is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
     }),
   });
   if (!response.ok) {

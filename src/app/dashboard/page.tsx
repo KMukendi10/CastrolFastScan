@@ -188,7 +188,7 @@ function Dash() {
             <h2 className="font-display text-2xl font-bold">Saved records preview</h2>
             <Button variant="ghost" onClick={() => setSheetPreview(null)}>Close preview</Button>
           </div>
-          <p className="text-sm text-muted">Preview from FastScan's saved database; syncing to Google Sheets is a separate action.</p>
+          <p className="text-sm text-muted">Preview from Castrol FastScan's saved database; syncing to Google Sheets is a separate action.</p>
           <div className="grid gap-6 xl:grid-cols-2">
             <PreviewTable title="Mechanics" rows={sheetPreview.mechanics} />
             <PreviewTable title="Spares shops" rows={sheetPreview.spares} />
@@ -234,7 +234,7 @@ function Dash() {
             {reps && reps.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-muted">No reps yet. Create logins with scripts/create-users.mjs.</td></tr>}
           </tbody>
         </table>
-        <p className="p-4 text-sm text-muted">*Scan numbers are typed in by reps, not read from the FastScan app, so treat them as self-reported.</p>
+        <p className="p-4 text-sm text-muted">*Scan numbers are typed in by reps, not read from the Castrol FastScan app, so treat them as self-reported.</p>
       </section>
     </Shell>
   );

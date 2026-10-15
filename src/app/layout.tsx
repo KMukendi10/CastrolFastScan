@@ -7,7 +7,7 @@ import "@fontsource/nunito/800.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FastScan Field",
+  title: "Castrol FastScan Field",
   description: "Capture mechanics, workshops and spares shops for Castrol FastScan.",
   manifest: "/manifest.webmanifest",
 };

@@ -8,7 +8,7 @@ export function ConsentBox({ checked, onChange }: { checked: boolean; onChange: 
         <input type="checkbox" className="size-8 accent-[var(--green)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span className="text-xl font-semibold">I agree</span>
       </label>
-      <p className="text-sm text-muted">If you do not tick this box, you can still be saved, but you cannot be registered on FastScan. Wording version: {CONSENT_VERSION} (draft, to be replaced by the approved text).</p>
+      <p className="text-sm text-muted">If you do not tick this box, you can still be saved, but you cannot be registered on Castrol FastScan. Wording version: {CONSENT_VERSION} (draft, to be replaced by the approved text).</p>
     </div>
   );
 }

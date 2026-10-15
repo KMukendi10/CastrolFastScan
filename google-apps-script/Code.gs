@@ -3,8 +3,8 @@ const FIRST_DATA_ROW = 5; // Rows 1-2 are the title; rows 3-4 are the template h
 const SYNC_STATE_TAB = "_FastScan Sync State";
 
 /**
- * FastScan -> Google Sheets receiver for the Castrol FastScan workbook layout.
- * Deploy as a Web app that executes as you. FastScan sends only rows already
+ * Castrol FastScan -> Google Sheets receiver for the Castrol FastScan workbook layout.
+ * Deploy as a Web app that executes as you. Castrol FastScan sends only rows already
  * saved in Supabase, plus a shared secret checked against Script Properties.
  */
 function doPost(e) {
@@ -48,7 +48,7 @@ function doPost(e) {
 }
 
 function syncRecord_(spreadsheet, kind, record, restoreMissing, syncState) {
-  if (!Number.isSafeInteger(Number(record.recordId)) || !record.row) throw new Error("Invalid FastScan row.");
+  if (!Number.isSafeInteger(Number(record.recordId)) || !record.row) throw new Error("Invalid Castrol FastScan row.");
   const databaseKind = String(record.row.database_kind || "");
   const tabPrefix = kind === "spares"
       ? "Spares"
