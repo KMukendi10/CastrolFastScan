@@ -45,6 +45,7 @@ function PreviewTable({ title, rows }: { title: string; rows: Record<string, unk
 }
 
 function Dash() {
+  const googleSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
   const [reps, setReps] = useState<Rep[] | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [err, setErr] = useState("");
@@ -113,12 +114,12 @@ function Dash() {
       const response = await fetch("/api/sheets-sync/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ kind: "all", restoreMissing }),
+        body: JSON.stringify({ kind: "mechanic", restoreMissing }),
       });
-      const result = await response.json() as { mechanicsSynced?: number; sparesSynced?: number; skippedCount?: number; error?: string };
+      const result = await response.json() as { mechanicsSynced?: number; skippedCount?: number; error?: string };
       if (!response.ok) throw new Error(result.error ?? "Google Sheet sync failed.");
       const skipped = result.skippedCount ?? 0;
-      setSheetSyncMsg(`Synced ${result.mechanicsSynced ?? 0} mechanic(s) and ${result.sparesSynced ?? 0} spares shop(s) to the live Google Sheet.${skipped ? ` Skipped ${skipped} previously deleted record(s).` : ""}`);
+      setSheetSyncMsg(`Synced ${result.mechanicsSynced ?? 0} eligible mechanic(s) to WhatsApp Import.${skipped ? ` Skipped ${skipped} ineligible, duplicate, or previously removed record(s).` : ""}`);
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Could not sync to the live Google Sheet.");
     } finally {
@@ -154,23 +155,23 @@ function Dash() {
         <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-card p-4">
           <div>
             <h2 className="font-display text-xl font-bold">Google Sheets</h2>
-            <p className="text-sm text-muted">Sync saved mechanics and spares records into their tabs in one workbook.</p>
+            <p className="text-sm text-muted">Sync eligible mechanic records to the Quorum WhatsApp Import tab. Spares sync is not configured yet.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!!busy} onClick={() => void syncAllToLiveSheet()}>
-              {busy === "sync-all" ? "Syncing all records..." : "Sync all to live sheet"}
+              {busy === "sync-all" ? "Syncing mechanic records..." : "Sync mechanics to WhatsApp Import"}
             </Button>
             <Button variant="ghost" disabled={!!busy} onClick={() => void syncAllToLiveSheet(true)}>
               {busy === "restore-missing" ? "Restoring missing records..." : "Restore missing records"}
             </Button>
-            <a
-              href="https://docs.google.com/spreadsheets/d/1dopguPdIfSEZV30jEzEAmgxRm6T_dhmNvF7MsBF4kYQ/edit"
+            {googleSheetUrl && <a
+              href={googleSheetUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="min-h-14 rounded-xl border-2 border-line bg-card px-6 text-lg font-semibold flex items-center hover:border-brand hover:bg-brand hover:text-white transition-all duration-150"
             >
-              Open live sheet
-            </a>
+              Open WhatsApp Import sheet
+            </a>}
           </div>
           {sheetSyncMsg && <p className="w-full text-sm font-semibold text-brand">{sheetSyncMsg}</p>}
           <p className="w-full text-sm text-muted">Normal sync adds new records and updates rows that remain in the sheet. Rows you delete stay deleted; use “Restore missing records” only when you want them back.</p>

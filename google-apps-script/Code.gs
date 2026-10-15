@@ -1,11 +1,18 @@
-const SPREADSHEET_ID = "1dopguPdIfSEZV30jEzEAmgxRm6T_dhmNvF7MsBF4kYQ";
-const FIRST_DATA_ROW = 5; // Rows 1-2 are the title; rows 3-4 are the template headers/help.
+const IMPORT_TAB = "WhatsApp Import";
+const HEADER_ROW = 1;
+const FIRST_DATA_ROW = 2;
 const SYNC_STATE_TAB = "_FastScan Sync State";
 
+const IMPORT_HEADERS = [
+  "WhatsApp Number", "First Name", "Last Name", "Full Name", "Mechanic ID",
+  "Workshop Name", "Region", "Street Address", "Preferred Language", "Business Type",
+  "FastScan Registered", "First Scan Completed", "Total Scans", "POPIA Consent", "Last Interaction",
+];
+
 /**
- * Castrol FastScan -> Google Sheets receiver for the Castrol FastScan workbook layout.
- * Deploy as a Web app that executes as you. Castrol FastScan sends only rows already
- * saved in Supabase, plus a shared secret checked against Script Properties.
+ * Castrol FastScan -> Quorum WhatsApp Import receiver.
+ * Configure FASTSCAN_SPREADSHEET_ID and FASTSCAN_SYNC_SECRET in Script Properties.
+ * Only eligible mechanic records are written to the WhatsApp Import tab.
  */
 function doPost(e) {
   try {
@@ -14,31 +21,49 @@ function doPost(e) {
     if (!expectedSecret || !constantTimeEqual_(request.secret || "", expectedSecret)) {
       return json_({ synced: false, error: "Sync authentication failed. Check the shared secret." });
     }
-    if (!["mechanic", "spares"].includes(request.kind)) {
-      return json_({ synced: false, error: "Invalid record type." });
+    if (request.kind !== "mechanic") {
+      return json_({ synced: false, error: "This workbook is currently configured for mechanic records only." });
     }
+
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);
     try {
-      const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-      const syncState = getSyncState_(spreadsheet);
+      const spreadsheetId = PropertiesService.getScriptProperties().getProperty("FASTSCAN_SPREADSHEET_ID");
+      if (!spreadsheetId) throw new Error("Set FASTSCAN_SPREADSHEET_ID in Apps Script properties.");
+      const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+      const sheet = spreadsheet.getSheetByName(IMPORT_TAB);
+      if (!sheet) throw new Error("Could not find the WhatsApp Import tab.");
+      const columns = headerColumns_(sheet);
+      const syncState = getSyncState_(spreadsheet, sheet, columns);
       const records = Array.isArray(request.records) ? request.records : [request];
       let syncedCount = 0;
       let skippedCount = 0;
+      const skippedReasons = [];
       const errors = [];
-      let lastTab = "";
+
       records.forEach(function (record) {
         try {
-          const outcome = syncRecord_(spreadsheet, request.kind, record, request.restoreMissing === true, syncState);
-          lastTab = outcome.tab;
-          if (outcome.skipped) skippedCount++;
-          else syncedCount++;
+          const result = syncMechanic_(sheet, columns, record, request.restoreMissing === true, syncState);
+          if (result.skipped) {
+            skippedCount++;
+            if (skippedReasons.length < 5) skippedReasons.push(result.reason);
+          } else {
+            syncedCount++;
+          }
         } catch (error) {
           if (errors.length < 5) errors.push(error && error.message ? error.message : "Could not write a row.");
         }
       });
       const failedCount = records.length - syncedCount - skippedCount;
-      return json_({ synced: failedCount === 0, syncedCount: syncedCount, skippedCount: skippedCount, failedCount: failedCount, errors: errors, tab: lastTab });
+      return json_({
+        synced: failedCount === 0,
+        syncedCount: syncedCount,
+        skippedCount: skippedCount,
+        skippedReasons: skippedReasons,
+        failedCount: failedCount,
+        errors: errors,
+        tab: IMPORT_TAB,
+      });
     } finally {
       lock.releaseLock();
     }
@@ -47,174 +72,141 @@ function doPost(e) {
   }
 }
 
-function syncRecord_(spreadsheet, kind, record, restoreMissing, syncState) {
+function headerColumns_(sheet) {
+  const headers = sheet.getRange(HEADER_ROW, 1, 1, sheet.getLastColumn()).getDisplayValues()[0]
+    .map(function (header) { return String(header || "").trim().toLowerCase(); });
+  const columns = {};
+  IMPORT_HEADERS.forEach(function (header) {
+    const index = headers.indexOf(header.toLowerCase());
+    if (index < 0) throw new Error("The WhatsApp Import tab is missing the heading: " + header);
+    columns[header] = index + 1;
+  });
+  return columns;
+}
+
+function syncMechanic_(sheet, columns, record, restoreMissing, syncState) {
   if (!Number.isSafeInteger(Number(record.recordId)) || !record.row) throw new Error("Invalid Castrol FastScan row.");
-  const databaseKind = String(record.row.database_kind || "");
-  const tabPrefix = kind === "spares"
-      ? "Spares"
-      : databaseKind === "independent_mechanic" ? "Independent Mechanics" : "1. Mechanics Profile";
-  const sheet = findSheet_(spreadsheet, tabPrefix);
-  if (!sheet) throw new Error("Could not find the workbook tab: " + tabPrefix);
+  const row = record.row;
+  const consent = yesNo_(row["POPIA consent"]);
+  if (consent !== "Yes") return { skipped: true, reason: "POPIA consent is not recorded as Yes." };
 
-  const values = kind === "spares" ? sparesValues_(record.row) : mechanicValues_(record.row, databaseKind);
-  const keyColumn = kind === "spares" ? 4 : 2; // Manager email or mechanic email.
-  const syncIdColumn = values.length + 1; // Keep the workbook's visible template columns intact.
-  ensureSyncIdColumn_(sheet, syncIdColumn);
+  const phone = normalizePhone_(row["Whatsapp number"] || row["Contact number"]);
+  if (!phone) return { skipped: true, reason: "A valid WhatsApp number is missing." };
 
-  const recordId = String(record.recordId);
+  const firstName = String(row["First name"] || "").trim();
+  const lastName = String(row.Surname || "").trim();
+  const mechanicId = String(row["Mechanic ID (Email Address)"] || "").trim().toLowerCase();
+  if (!firstName || !lastName || !mechanicId) throw new Error("The saved mechanic is missing a name or email reference.");
+
   const lastRow = Math.max(sheet.getLastRow(), FIRST_DATA_ROW - 1);
   const count = Math.max(0, lastRow - FIRST_DATA_ROW + 1);
-  const ids = count ? sheet.getRange(FIRST_DATA_ROW, syncIdColumn, count, 1).getDisplayValues().flat() : [];
-  const keys = count ? sheet.getRange(FIRST_DATA_ROW, keyColumn, count, 1).getDisplayValues().flat() : [];
-  const sparesKeyPairs = count && kind === "spares"
-    ? sheet.getRange(FIRST_DATA_ROW, 3, count, 2).getDisplayValues()
-    : [];
-  const matchKey = kind === "spares"
-    ? [values[2], values[3]].map(normalize_).join("|")
-    : normalize_(values[1]);
+  const ids = count ? sheet.getRange(FIRST_DATA_ROW, columns["Mechanic ID"], count, 1).getDisplayValues().flat() : [];
+  const phones = count ? sheet.getRange(FIRST_DATA_ROW, columns["WhatsApp Number"], count, 1).getDisplayValues().flat() : [];
   const idMatches = [];
-  const keyMatches = [];
+  const phoneMatches = [];
   ids.forEach(function (id, index) {
-    if (id === recordId) idMatches.push(index);
+    if (String(id || "").trim().toLowerCase() === mechanicId) idMatches.push(index);
   });
-  keys.forEach(function (key, index) {
-    if (!key) return;
-    const matches = kind === "spares"
-      ? sparesKeyPairs[index].map(normalize_).join("|") === matchKey
-      : normalize_(key) === matchKey;
-    if (matches) keyMatches.push(index);
+  phones.forEach(function (number, index) {
+    if (normalizePhone_(number) === phone) phoneMatches.push(index);
   });
-  const duplicateIndexes = Array.from(new Set(idMatches.concat(keyMatches)));
-  let targetRow = duplicateIndexes.length
-    ? FIRST_DATA_ROW + (idMatches.length ? idMatches[0] : keyMatches[0])
-    : -1;
-  const stateKey = syncStateKey_(kind, recordId);
-  if (targetRow < FIRST_DATA_ROW && syncState.ids.has(stateKey) && !restoreMissing) {
-    return { tab: sheet.getName(), skipped: true };
-  }
-  if (targetRow < FIRST_DATA_ROW) {
-    const emptyIndex = keys.findIndex(function (key) { return !key; });
-    targetRow = emptyIndex >= 0 ? FIRST_DATA_ROW + emptyIndex : Math.max(FIRST_DATA_ROW, lastRow + 1);
+  if (idMatches.length > 1) throw new Error("More than one existing row has this Mechanic ID. Review the workbook before syncing.");
+  const targetIndex = idMatches.length ? idMatches[0] : -1;
+  if (phoneMatches.some(function (index) { return index !== targetIndex; })) {
+    return { skipped: true, reason: "This WhatsApp number already belongs to another Mechanic ID; review it before importing." };
   }
 
-  sheet.getRange(targetRow, 1, 1, values.length).setValues([values.map(sheetValue_)]);
-  sheet.getRange(targetRow, syncIdColumn).setValue(recordId);
-  duplicateIndexes
-    .map(function (index) { return FIRST_DATA_ROW + index; })
-    .filter(function (row) { return row !== targetRow; })
-    .sort(function (a, b) { return b - a; })
-    .forEach(function (row) { sheet.deleteRow(row); });
-  rememberSynced_(syncState, kind, recordId);
-  return { tab: sheet.getName(), skipped: false };
+  const stateKey = "mechanic-email|" + mechanicId;
+  if (targetIndex < 0 && syncState.ids.has(stateKey) && !restoreMissing) {
+    return { skipped: true, reason: "This previously synced row was removed from the workbook." };
+  }
+
+  const valuesByHeader = {
+    "WhatsApp Number": phone,
+    "First Name": firstName,
+    "Last Name": lastName,
+    "Full Name": [firstName, lastName].filter(Boolean).join(" "),
+    "Mechanic ID": mechanicId,
+    "Workshop Name": row["Workshop name"],
+    "Region": row.Region,
+    "Street Address": row["Street address"],
+    "Preferred Language": row["Preferred language"],
+    "Business Type": row["Business type"],
+    "FastScan Registered": yesNo_(row["FastScan registered"]),
+    "First Scan Completed": yesNo_(row["First scan completed (agent)"], "No"),
+    "Total Scans": row["Total scans"] == null ? 0 : row["Total scans"],
+    "POPIA Consent": consent,
+    "Last Interaction": dateOnly_(row["Last interaction"]),
+  };
+  const targetRow = targetIndex >= 0 ? FIRST_DATA_ROW + targetIndex : Math.max(FIRST_DATA_ROW, lastRow + 1);
+  writeMappedRow_(sheet, targetRow, columns, valuesByHeader);
+  rememberSynced_(syncState, stateKey);
+  return { skipped: false };
 }
 
-function getSyncState_(spreadsheet) {
-  let stateSheet = spreadsheet.getSheetByName(SYNC_STATE_TAB);
-  let seedRows = [];
-  if (!stateSheet) {
-    stateSheet = spreadsheet.insertSheet(SYNC_STATE_TAB);
-    stateSheet.getRange(1, 1, 1, 3).setValues([["kind", "record_id", "synced_at"]]);
-    seedRows = existingSyncIds_(spreadsheet);
-  } else if (stateSheet.getLastRow() <= 1) {
-    stateSheet.getRange(1, 1, 1, 3).setValues([["kind", "record_id", "synced_at"]]);
-    seedRows = existingSyncIds_(spreadsheet);
-  }
-  if (seedRows.length) stateSheet.getRange(2, 1, seedRows.length, 3).setValues(seedRows);
-  stateSheet.hideSheet();
-
-  const lastRow = stateSheet.getLastRow();
-  const rows = lastRow > 1 ? stateSheet.getRange(2, 1, lastRow - 1, 2).getDisplayValues() : [];
-  return { sheet: stateSheet, ids: new Set(rows.map(function (row) { return syncStateKey_(row[0], row[1]); })) };
+function dateOnly_(value) {
+  if (value == null || value === "") return "";
+  var date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return "";
+  return Utilities.formatDate(date, "Africa/Johannesburg", "yyyy-MM-dd");
 }
 
-function existingSyncIds_(spreadsheet) {
-  const rows = [];
-  [
-    { prefix: "1. Mechanics Profile", kind: "mechanic", idColumn: 31 },
-    { prefix: "Independent Mechanics", kind: "mechanic", idColumn: 30 },
-    { prefix: "Spares", kind: "spares", idColumn: 39 },
-  ].forEach(function (entry) {
-    const sheet = findSheet_(spreadsheet, entry.prefix);
-    if (!sheet || sheet.getLastRow() < FIRST_DATA_ROW || sheet.getMaxColumns() < entry.idColumn) return;
-    const count = sheet.getLastRow() - FIRST_DATA_ROW + 1;
-    sheet.getRange(FIRST_DATA_ROW, entry.idColumn, count, 1).getDisplayValues().forEach(function (row) {
-      const recordId = String(row[0] || "").trim();
-      if (recordId) rows.push([entry.kind, recordId, new Date().toISOString()]);
-    });
+function writeMappedRow_(sheet, row, columns, valuesByHeader) {
+  const updates = Object.keys(valuesByHeader).map(function (header) {
+    return { column: columns[header], value: sheetValue_(valuesByHeader[header]) };
+  }).sort(function (a, b) { return a.column - b.column; });
+  let group = [];
+  updates.forEach(function (update) {
+    if (group.length && update.column !== group[group.length - 1].column + 1) {
+      writeColumnGroup_(sheet, row, group);
+      group = [];
+    }
+    group.push(update);
   });
-  return rows;
+  if (group.length) writeColumnGroup_(sheet, row, group);
 }
 
-function syncStateKey_(kind, recordId) {
-  return String(kind) + "|" + String(recordId);
+function writeColumnGroup_(sheet, row, group) {
+  sheet.getRange(row, group[0].column, 1, group.length)
+    .setValues([group.map(function (item) { return item.value; })]);
 }
 
-function rememberSynced_(syncState, kind, recordId) {
-  const key = syncStateKey_(kind, recordId);
-  if (syncState.ids.has(key)) return;
-  syncState.sheet.appendRow([kind, String(recordId), new Date().toISOString()]);
-  syncState.ids.add(key);
-}
-
-function findSheet_(spreadsheet, prefix) {
-  return spreadsheet.getSheets().find(function (sheet) {
-    return sheet.getName() === prefix || sheet.getName().startsWith(prefix + " (");
-  }) || null;
-}
-
-function ensureSyncIdColumn_(sheet, column) {
-  if (sheet.getMaxColumns() < column) sheet.insertColumnAfter(sheet.getMaxColumns());
-  sheet.getRange(3, column).setValue("_FastScan record ID");
-  sheet.hideColumns(column);
-}
-
-function mechanicValues_(row, databaseKind) {
-  const base = [
-    row.Date, row["Mechanic ID (Email Address)"], row["First name"], row.Surname,
-    row["Contact number"], row["Whatsapp number"], row["Workshop name"], row["Town/Suburb"],
-    row["Street address"], gps_(row), row["Preferred language"], row["Vehicles per day"],
-    row["Main oil brand used"], row["Reason for brand"], row["Stock bought"], row["Shop name"],
-    yesNo_(row["FastScan registered"]), row["Registration date"], yesNo_(row["First scan completed (agent)"], "No"),
-    row["Last interaction"], row.Specialisation, row["Years of experience"], row["Training background"],
-    yesNo_(row["POPIA consent"]), row["Business type"], row["Total scans"],
-  ];
-  if (databaseKind === "independent_mechanic") {
-    return base.concat([yesNo_(row["Pays rent?"]), row.Notes, row["FastScan notes"]]);
+function getSyncState_(spreadsheet, importSheet, columns) {
+  let sheet = spreadsheet.getSheetByName(SYNC_STATE_TAB);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SYNC_STATE_TAB);
+    sheet.getRange(1, 1, 1, 2).setValues([["sync_key", "synced_at"]]);
+    const lastImportRow = importSheet.getLastRow();
+    const count = Math.max(0, lastImportRow - FIRST_DATA_ROW + 1);
+    const existingIds = count
+      ? importSheet.getRange(FIRST_DATA_ROW, columns["Mechanic ID"], count, 1).getDisplayValues().flat()
+      : [];
+    const seedRows = existingIds.map(function (id) { return String(id || "").trim().toLowerCase(); })
+      .filter(Boolean).map(function (id) { return ["mechanic-email|" + id, new Date().toISOString()]; });
+    if (seedRows.length) sheet.getRange(2, 1, seedRows.length, 2).setValues(seedRows);
+    sheet.hideSheet();
   }
-  return base.concat([row.Notes, yesNo_(row["Service kit distributed"]), row["Items given"], row["FastScan notes"]]);
+  if (sheet.getLastRow() < 1) sheet.getRange(1, 1, 1, 2).setValues([["sync_key", "synced_at"]]);
+  const lastRow = sheet.getLastRow();
+  const keys = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues().flat() : [];
+  return { sheet: sheet, ids: new Set(keys) };
 }
 
-function sparesValues_(row) {
-  const prices = row["Prices (ZAR)"] || {};
-  const price = function (label) { return prices[label] ?? ""; };
-  return [
-    row["Date of latest visit"], row.Region, row["Spare shop trading name"], row["Manager email"],
-    row.Area, row["Manager name"], row["Manager surname"], row["Whatsapp number"], row["Contact number"],
-    row.Address, gps_(row), row["Business type"], row["Years in operation"], yesNo_(row["Stocks Castrol?"]),
-    row["Castrol products stocked"], row["Castrol stock level"], row["Castrol branding visibility"],
-    price("5L Castrol GTX"), price("5L Castrol Magnatec Petrol"), price("5L Castrol Magnatec Petrol & Diesel"),
-    price("5L Castrol EDGE"), price("5L Castrol Actevo"), price("1L Castrol GTX"),
-    price("1L Castrol Magnatec (Petrol)"), price("1L Castrol Magnatec (Petrol & Diesel)"),
-    price("1L Castrol EDGE"), price("1L Castrol Actevo"), row["Competitor brands stocked"],
-    row["Strongest sellers"], row["Most customer requests"], row["Most mechanic requests"],
-    yesNo_(row["Serves mechanics?"]), row["Mechanics visiting weekly"], yesNo_(row["Can refer workshops?"]),
-    row["Promo sales to date"], row["Competitor price comparison"], row.Notes, yesNo_(row["New stock"]),
-  ];
+function rememberSynced_(state, key) {
+  if (state.ids.has(key)) return;
+  state.sheet.appendRow([key, new Date().toISOString()]);
+  state.ids.add(key);
 }
 
-function gps_(row) {
-  if (row["GPS latitude"] == null || row["GPS longitude"] == null) return "";
-  return String(row["GPS latitude"]) + ", " + String(row["GPS longitude"]);
+function normalizePhone_(value) {
+  const phone = String(value || "").trim().replace(/[\s()-]/g, "");
+  return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : "";
 }
 
 function yesNo_(value, emptyValue) {
-  if (value === true) return "Yes";
-  if (value === false) return "No";
-  return value == null ? (emptyValue || "") : value;
-}
-
-function normalize_(value) {
-  return String(value || "").trim().toLowerCase();
+  if (value === true || String(value).trim().toLowerCase() === "yes") return "Yes";
+  if (value === false || String(value).trim().toLowerCase() === "no") return "No";
+  return value == null || value === "" ? (emptyValue || "") : value;
 }
 
 function sheetValue_(value) {

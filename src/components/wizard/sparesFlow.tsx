@@ -1,6 +1,6 @@
 import { Chips, Choice, Field, Select, TextArea, TextInput, YesNo } from "@/components/ui";
 import { BRANDING, STOCK_LEVELS, WEEKLY, YEARS_OP, CONSENT_VERSION } from "@/lib/options";
-import { emailOk, toE164, todayISO } from "@/lib/format";
+import { emailOk, normalizeGps, toE164, todayISO } from "@/lib/format";
 import type { Flow, Step } from "./types";
 import { GpsField } from "./GpsField";
 import { ConsentBox } from "./ConsentBox";
@@ -54,22 +54,22 @@ export function sparesFlow(): Flow<SState> {
       },
       render: ({ s, set, e, lk, submissionId }) => (
         <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Shop name" error={e.trading_name}><TextInput value={s.trading_name} onChange={(x) => set({ trading_name: x.target.value })} /></Field>
+          <Field label="Shop name" required error={e.trading_name}><TextInput value={s.trading_name} onChange={(x) => set({ trading_name: x.target.value })} /></Field>
           <Field label="Shop type"><Select value={s.shop_type} onChange={(v) => set({ shop_type: v })} options={lk.shopTypes} /></Field>
-          <Field label="Region" error={e.region}><Select value={s.region} onChange={(v) => set({ region: v })} options={lk.regions} /></Field>
+          <Field label="Region" required error={e.region}><Select value={s.region} onChange={(v) => set({ region: v })} options={lk.regions} /></Field>
           <Field label="Area"><TextInput value={s.area} onChange={(x) => set({ area: x.target.value })} /></Field>
           <div className="md:col-span-2"><Field label="Address"><TextInput value={s.address} onChange={(x) => set({ address: x.target.value })} /></Field></div>
           <div className="md:col-span-2"><Field label="Years in operation"><Choice value={s.years_op} onChange={(v) => set({ years_op: v })} options={YEARS_OP} /></Field></div>
-          <Field label="Manager first name" error={e.m_first}><TextInput value={s.m_first} onChange={(x) => set({ m_first: x.target.value })} /></Field>
-          <Field label="Manager surname" error={e.m_surname}><TextInput value={s.m_surname} onChange={(x) => set({ m_surname: x.target.value })} /></Field>
-          <Field label="Manager email" error={e.m_email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_email} onChange={(x) => set({ m_email: x.target.value })} /></Field>
+          <Field label="Manager first name" required error={e.m_first}><TextInput value={s.m_first} onChange={(x) => set({ m_first: x.target.value })} /></Field>
+          <Field label="Manager surname" required error={e.m_surname}><TextInput value={s.m_surname} onChange={(x) => set({ m_surname: x.target.value })} /></Field>
+          <Field label="Manager email" required error={e.m_email}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_email} onChange={(x) => set({ m_email: x.target.value })} /></Field>
           <div>
-            <Field label="Confirm manager email" error={e.m_emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_emailConfirm} onChange={(x) => set({ m_emailConfirm: x.target.value })} /></Field>
+            <Field label="Confirm manager email" required error={e.m_emailConfirm}><TextInput type="email" inputMode="email" autoComplete="off" value={s.m_emailConfirm} onChange={(x) => set({ m_emailConfirm: x.target.value })} /></Field>
             {emailMatchStatus(s.m_email, s.m_emailConfirm) && <p role="status" aria-live="polite" className={`mt-1 text-sm font-semibold ${emailMatchStatus(s.m_email, s.m_emailConfirm) === "match" ? "text-brand" : "text-alert"}`}>
               {emailMatchStatus(s.m_email, s.m_emailConfirm) === "match" ? "Email addresses match." : "Email addresses don’t match."}
             </p>}
           </div>
-          <div><Field label="Shop phone number" error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field>{s.contact.trim() && <OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} />}</div>
+          <div><Field label="Shop phone number" hint="Optional. If entered, it must be confirmed and verified." error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field>{s.contact.trim() && <OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} />}</div>
           <Field label="Confirm shop phone number" error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
           <Field label="WhatsApp number" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>
         </div>
@@ -139,10 +139,10 @@ export function sparesFlow(): Flow<SState> {
         captured_at: new Date().toISOString(),
         shop: {
           trading_name: s.trading_name.trim(), shop_type: n(s.shop_type), region: s.region, area: n(s.area), address: n(s.address),
-          gps: s.lat && s.lon ? { latitude: Number(s.lat), longitude: Number(s.lon), accuracy_m: Number(s.acc) } : undefined,
+          gps: normalizeGps(s.lat, s.lon, s.acc),
           years_in_operation: n(s.years_op),
           manager: {
-            first_name: s.m_first.trim(), surname: s.m_surname.trim(), email: s.m_email.trim(),
+            first_name: s.m_first.trim(), surname: s.m_surname.trim(), email: s.m_email.trim().toLowerCase(),
             contact_number: s.contact.trim() ? toE164(s.contact) : undefined,
             whatsapp_number: s.whatsapp.trim() ? toE164(s.whatsapp) : undefined,
           },

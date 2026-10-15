@@ -54,8 +54,8 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
       <p className="text-lg text-muted">{label} is recorded under your name.</p>
       {done.sheetSync === "syncing" && <p className="text-sm text-muted">Adding this registration to the Google Sheet…</p>}
       {done.sheetSync === "synced" && <p className="text-sm font-semibold text-brand">This registration was also added to the Google Sheet.</p>}
-      {done.sheetSync === "skipped" && <p className="text-sm text-muted">This registration was left out of the Google Sheet because its row was previously deleted.</p>}
-      {done.sheetSync === "not-configured" && <p className="text-sm text-muted">Google Sheet sync is not set up yet. This registration is saved in Castrol FastScan.</p>}
+      {done.sheetSync === "skipped" && <p className="text-sm text-muted">This registration was not added to the WhatsApp Import tab{done.sheetMessage ? `: ${done.sheetMessage}` : "."} It is saved in Castrol FastScan.</p>}
+      {done.sheetSync === "not-configured" && <p className="text-sm text-muted">{done.sheetMessage ?? "Google Sheet sync is not set up yet."} This registration is saved in Castrol FastScan.</p>}
       {done.sheetSync === "failed" && (
         <div className="space-y-2">
           <p className="text-sm text-alert">Saved in Castrol FastScan, but the Google Sheet sync failed{done.sheetMessage ? `: ${done.sheetMessage}` : "."}</p>
@@ -91,7 +91,7 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
         setDone((current) => current ? { ...current, sheetSync: "not-configured", sheetMessage: result.message } : current);
         return;
       }
-      setDone((current) => current ? { ...current, sheetSync: result.skipped ? "skipped" : result.synced ? "synced" : "failed", sheetMessage: result.error } : current);
+      setDone((current) => current ? { ...current, sheetSync: result.skipped ? "skipped" : result.synced ? "synced" : "failed", sheetMessage: result.skipped ? result.message : result.error } : current);
     } catch (error) {
       setDone((current) => current ? { ...current, sheetSync: "failed", sheetMessage: error instanceof Error ? error.message : "Google Sheets sync failed." } : current);
     }
@@ -125,8 +125,14 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
       try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
       const saved = data as { duplicate?: boolean; mechanic_id?: number; shop_id?: number };
       const recordId = flow.rpc === "submit_onboarding" ? saved?.mechanic_id : saved?.shop_id;
-      setDone({ duplicate: !!saved?.duplicate, sheetSync: "not-configured", recordId });
-      if (recordId) void syncSavedRecord(recordId);
+      const isMechanic = flow.rpc === "submit_onboarding";
+      setDone({
+        duplicate: !!saved?.duplicate,
+        sheetSync: "not-configured",
+        sheetMessage: isMechanic ? undefined : "Spares sheet sync has not been configured yet.",
+        recordId,
+      });
+      if (recordId && isMechanic) void syncSavedRecord(recordId);
     } catch {
       setFail("No signal. Your answers are kept on this tablet. Try again when you are back online.");
     } finally { setBusy(false); }
@@ -145,6 +151,7 @@ export function Wizard<S>({ flow, draftKey, label }: { flow: Flow<S>; draftKey: 
           <div>
             <h1 className="font-display text-4xl font-bold">{step.title}</h1>
             {step.intro && <p className="mt-1 text-lg text-muted">{step.intro}</p>}
+            <p className="mt-2 text-sm text-muted"><span className="font-semibold text-brand">*</span> Required. Fields without an asterisk are optional.</p>
           </div>
           {Object.keys(errors).length > 0 && <Banner tone="error">Fix the marked fields to continue.</Banner>}
           {fail && <Banner tone="error">{fail}</Banner>}

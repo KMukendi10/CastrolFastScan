@@ -1,6 +1,6 @@
 import { requireManager, supabaseAdmin } from "@/lib/supabase-admin";
 
-type BatchRequest = { kind?: "all" | "mechanic" | "spares"; restoreMissing?: boolean };
+type BatchRequest = { kind?: "mechanic"; restoreMissing?: boolean };
 type KindResult = { syncedCount: number; skippedCount: number; failedCount: number; tab?: string; error?: string };
 
 export async function POST(req: Request) {
@@ -9,8 +9,8 @@ export async function POST(req: Request) {
       return Response.json({ error: "An active manager account is required to sync the sheet." }, { status: 401 });
     }
     const body = await req.json() as BatchRequest;
-    if (body.kind !== "all" && body.kind !== "mechanic" && body.kind !== "spares") {
-      return Response.json({ error: "Choose which saved records to sync." }, { status: 400 });
+    if (body.kind !== "mechanic") {
+      return Response.json({ error: "Only mechanic sync to WhatsApp Import is configured." }, { status: 400 });
     }
 
     const endpoint = process.env.GOOGLE_APPS_SCRIPT_URL;
@@ -19,19 +19,16 @@ export async function POST(req: Request) {
       return Response.json({ error: "Google Sheets sync is not configured. Add the Apps Script URL and shared secret to .env.local, then restart the app." }, { status: 503 });
     }
 
-    const kinds = body.kind === "all" ? ["mechanic", "spares"] as const : [body.kind];
-    const results: Record<string, KindResult> = {};
-    for (const kind of kinds) results[kind] = await syncKind(kind, endpoint, secret, body.restoreMissing === true);
+    const results = { mechanic: await syncKind("mechanic", endpoint, secret, body.restoreMissing === true) };
 
     const mechanicsSynced = results.mechanic?.syncedCount ?? 0;
-    const sparesSynced = results.spares?.syncedCount ?? 0;
     const skippedCount = Object.values(results).reduce((count, result) => count + result.skippedCount, 0);
     const failedCount = Object.values(results).reduce((count, result) => count + result.failedCount, 0);
     const syncError = Object.values(results).find((result) => result.error)?.error;
     if (failedCount || syncError) {
-      return Response.json({ mechanicsSynced, sparesSynced, skippedCount, failedCount, error: syncError ?? `Some rows failed to sync (${failedCount}). Retry to try again.` }, { status: 502 });
+      return Response.json({ mechanicsSynced, skippedCount, failedCount, error: syncError ?? `Some rows failed to sync (${failedCount}). Retry to try again.` }, { status: 502 });
     }
-    return Response.json({ mechanicsSynced, sparesSynced, skippedCount, failedCount: 0 });
+    return Response.json({ mechanicsSynced, skippedCount, failedCount: 0 });
   } catch (error) {
     console.error("[sheets-sync-batch] Sync request failed", error instanceof Error ? error.message : "unknown error");
     return Response.json({ error: "Could not sync saved records to Google Sheets." }, { status: 502 });
