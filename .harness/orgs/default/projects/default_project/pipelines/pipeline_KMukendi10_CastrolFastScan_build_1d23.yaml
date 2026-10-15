@@ -1,0 +1,35 @@
+pipeline:
+  id: pipeline_KMukendi10_CastrolFastScan_build_1d23
+  name: pipeline_KMukendi10_CastrolFastScan_build_1d23
+  stages:
+    - id: build
+      name: Build and Lint
+      runtime: cloud
+      clone:
+        enabled: true
+      cache:
+        enabled: true
+      steps:
+        - id: install_dependencies
+          name: Install Dependencies
+          run:
+            shell: bash
+            script: |-
+              node --version
+              npm --version
+              npm ci
+          timeout: 10m
+        - id: lint
+          name: Lint
+          run:
+            shell: bash
+            script: npm run lint
+          timeout: 5m
+        - id: build
+          name: Build
+          run:
+            shell: bash
+            script: npm run build
+          timeout: 15m
+  tags:
+    onboarding: "true"
