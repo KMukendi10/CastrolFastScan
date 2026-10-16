@@ -37,6 +37,7 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 18px;
+  line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -49,6 +50,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 
 a, button, [role="button"] { cursor: pointer; }
+
+button, a, input, textarea, select { touch-action: manipulation; }
+
+::selection { background: #cce9da; color: #003d22; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

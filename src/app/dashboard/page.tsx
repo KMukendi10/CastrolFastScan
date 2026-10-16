@@ -5,7 +5,7 @@ import { Shell } from "@/components/Shell";
 import { DailyChart, type Day } from "@/components/DailyChart";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
-import { toXlsx, downloadXlsx } from "@/lib/xlsx";
+import { toWorkbookXlsx, downloadXlsx } from "@/lib/xlsx";
 import { toCsv, download as downloadCsv } from "@/lib/csv";
 import { todayISO } from "@/lib/format";
 
@@ -53,6 +53,7 @@ function Dash() {
   const [sheetSyncDestination, setSheetSyncDestination] = useState<{ name: string; url: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
 
   useEffect(() => {
     supabase().from("v_rep_performance").select("*").eq("role", "rep").order("people_captured", { ascending: false })
@@ -75,21 +76,38 @@ function Dash() {
     registered: sum(reps, "registered"), adopters: sum(reps, "adopters"),
   } : null, [reps]);
 
-  async function exportXlsx(view: "v_mechanic_flat" | "v_spares_latest", label: string) {
-    setBusy(view); setErr(""); setSheetPreview(null);
-    const { data, error } = await supabase().from(view).select("*").limit(50000);
+  async function exportWorkbook() {
+    setBusy("export-workbook"); setErr(""); setSheetPreview(null);
+    const [mechanics, spares] = await Promise.all([
+      supabase().from("v_mechanic_flat").select("*").limit(50000),
+      supabase().from("v_spares_latest").select("*").limit(50000),
+    ]);
     setBusy("");
-    if (error) return setErr(error.message);
-    const rows = data as Record<string, unknown>[];
-    downloadXlsx(`${label}-${todayISO()}.xlsx`, toXlsx(rows));
+    if (mechanics.error || spares.error) return setErr(mechanics.error?.message ?? spares.error?.message ?? "Could not export records.");
+    const workbook = toWorkbookXlsx([
+      { name: "Mechanics", rows: mechanics.data as Record<string, unknown>[] },
+      { name: "Spares shops", rows: spares.data as Record<string, unknown>[] },
+    ]);
+    downloadXlsx(`castrol-fastscan-${todayISO()}.xlsx`, workbook);
   }
 
-  async function exportCsv(view: "v_mechanic_flat" | "v_spares_latest", label: string) {
-    setBusy("csv-" + view); setErr(""); setSheetPreview(null);
-    const { data, error } = await supabase().from(view).select("*").limit(50000);
+  async function exportCsvFile() {
+    setBusy("export-csv"); setErr(""); setSheetPreview(null);
+    const [mechanics, spares] = await Promise.all([
+      supabase().from("v_mechanic_flat").select("*").limit(50000),
+      supabase().from("v_spares_latest").select("*").limit(50000),
+    ]);
     setBusy("");
-    if (error) return setErr(error.message);
-    downloadCsv(`${label}-${todayISO()}.csv`, toCsv(data as Record<string, unknown>[]));
+    if (mechanics.error || spares.error) return setErr(mechanics.error?.message ?? spares.error?.message ?? "Could not export records.");
+
+    const mechanicRows = (mechanics.data ?? []) as Record<string, unknown>[];
+    const sparesRows = (spares.data ?? []) as Record<string, unknown>[];
+    const columns = ["Record type", ...new Set([...mechanicRows, ...sparesRows].flatMap((row) => Object.keys(row)))];
+    const rows = [
+      ...mechanicRows.map((row) => ({ ...row, "Record type": "Mechanic" })),
+      ...sparesRows.map((row) => ({ ...row, "Record type": "Spares shop" })),
+    ].map((row) => Object.fromEntries(columns.map((column) => [column, row[column]])));
+    downloadCsv(`castrol-fastscan-${todayISO()}.csv`, toCsv(rows));
   }
 
   async function previewSheet() {
@@ -107,8 +125,8 @@ function Dash() {
   }
 
   async function syncAllToLiveSheet(restoreMissing = false) {
-    if (restoreMissing && !window.confirm("Restore records that were previously synced but are now missing from the sheet? This will add those rows back from Supabase.")) return;
     setBusy(restoreMissing ? "restore-missing" : "sync-all"); setErr(""); setSheetSyncMsg(""); setSheetSyncDestination(null); setSheetPreview(null);
+    setConfirmRestore(false);
     try {
       const { data: { session } } = await supabase().auth.getSession();
       if (!session?.access_token) throw new Error("Your session has expired. Sign in again.");
@@ -127,9 +145,10 @@ function Dash() {
         error?: string;
       };
       if (!response.ok) throw new Error(result.error ?? "Google Sheet sync failed.");
-      const skipped = result.skippedCount ?? 0;
-      const rows = result.writtenRows?.length ? ` Row(s): ${result.writtenRows.join(", ")}.` : "";
-      setSheetSyncMsg(`Wrote or updated ${result.mechanicsSynced ?? 0} mechanic row(s) in ${result.spreadsheetName ?? "the target spreadsheet"} → ${result.tab ?? "WhatsApp Import"}.${rows}${skipped ? ` Skipped ${skipped} ineligible, duplicate, or previously removed record(s).` : ""}`);
+      const synced = result.mechanicsSynced ?? 0;
+      setSheetSyncMsg(synced === 0
+        ? restoreMissing ? "Nothing to restore. The sheet is up to date." : "Nothing new to sync. The sheet is up to date."
+        : `${synced} record${synced === 1 ? "" : "s"} synced to the sheet.`);
       if (result.spreadsheetName && result.spreadsheetUrl) {
         setSheetSyncDestination({ name: result.spreadsheetName, url: result.spreadsheetUrl });
       }
@@ -152,30 +171,24 @@ function Dash() {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="ghost" disabled={!!busy} onClick={() => exportXlsx("v_mechanic_flat", "mechanics")}>
-            {busy === "v_mechanic_flat" ? "Preparing…" : "Mechanics (Excel)"}
-          </Button>
-          <Button variant="ghost" disabled={!!busy} onClick={() => exportCsv("v_mechanic_flat", "mechanics")}>
-            {busy === "csv-v_mechanic_flat" ? "Preparing…" : "Mechanics (CSV)"}
-          </Button>
-          <Button variant="ghost" disabled={!!busy} onClick={() => exportXlsx("v_spares_latest", "spares-shops")}>
-            {busy === "v_spares_latest" ? "Preparing…" : "Spares shops (Excel)"}
-          </Button>
-          <Button variant="ghost" disabled={!!busy} onClick={() => exportCsv("v_spares_latest", "spares-shops")}>
-            {busy === "csv-v_spares_latest" ? "Preparing…" : "Spares shops (CSV)"}
-          </Button>
-        </div>
+        <Button variant="ghost" disabled={!!busy} onClick={() => void exportWorkbook()}>
+          {busy === "export-workbook" ? "Preparing…" : "Download Excel"}
+        </Button>
+        <Button variant="ghost" disabled={!!busy} onClick={() => void exportCsvFile()}>
+          {busy === "export-csv" ? "Preparing…" : "Download CSV"}
+        </Button>
+      </div>
         <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-card p-4">
           <div>
             <h2 className="font-display text-xl font-bold">Google Sheets</h2>
-            <p className="text-sm text-muted">Sync eligible mechanic records to the Quorum WhatsApp Import tab. Spares sync is not configured yet.</p>
+            <p className="text-sm text-muted">Sync the sheet with new records.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={!!busy} onClick={() => void syncAllToLiveSheet()}>
-              {busy === "sync-all" ? "Syncing mechanic records..." : "Sync mechanics to WhatsApp Import"}
+              {busy === "sync-all" ? "Syncing..." : "Sync sheet"}
             </Button>
-            <Button variant="ghost" disabled={!!busy} onClick={() => void syncAllToLiveSheet(true)}>
-              {busy === "restore-missing" ? "Restoring missing records..." : "Restore missing records"}
+            <Button variant="ghost" disabled={!!busy} onClick={() => setConfirmRestore(true)}>
+              {busy === "restore-missing" ? "Restoring..." : "Restore records"}
             </Button>
             <a
               href={googleSheetUrl}
@@ -186,16 +199,23 @@ function Dash() {
               Open live sheet
             </a>
           </div>
+          {confirmRestore && (
+            <div className="flex w-full flex-wrap items-center gap-3 rounded-xl border border-line bg-paper p-3" role="group" aria-label="Confirm restore">
+              <p className="mr-auto font-semibold">Restore missing rows?</p>
+              <Button variant="ghost" onClick={() => setConfirmRestore(false)}>Cancel</Button>
+              <Button onClick={() => void syncAllToLiveSheet(true)}>Restore</Button>
+            </div>
+          )}
           {sheetSyncMsg && <p className="w-full text-sm font-semibold text-brand">{sheetSyncMsg}</p>}
           {sheetSyncDestination && (
             <p className="w-full text-sm">
               Sync destination: <a className="font-semibold underline" href={sheetSyncDestination.url} target="_blank" rel="noopener noreferrer">Open {sheetSyncDestination.name}</a>
             </p>
           )}
-          <p className="w-full text-sm text-muted">Normal sync adds new records and updates rows that remain in the sheet. Rows you delete stay deleted; use “Restore missing records” only when you want them back.</p>
+          <p className="w-full text-sm text-muted">Deleted rows stay deleted unless you restore them.</p>
           <div className="w-full">
             <Button variant="ghost" disabled={!!busy} onClick={() => void previewSheet()}>
-              {busy === "preview-all" ? "Loading saved records..." : "Preview saved records"}
+              {busy === "preview-all" ? "Loading..." : "Preview records"}
             </Button>
           </div>
         </section>
@@ -205,7 +225,7 @@ function Dash() {
         <section className="mt-4 space-y-3 rounded-2xl border border-line bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-display text-2xl font-bold">Saved records preview</h2>
-            <Button variant="ghost" onClick={() => setSheetPreview(null)}>Close preview</Button>
+            <Button variant="ghost" onClick={() => setSheetPreview(null)}>Close</Button>
           </div>
           <p className="text-sm text-muted">Preview from Castrol FastScan's saved database; syncing to Google Sheets is a separate action.</p>
           <div className="grid gap-6 xl:grid-cols-2">
