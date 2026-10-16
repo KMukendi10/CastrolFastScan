@@ -54,10 +54,9 @@ export default function ManagerLogin() {
         <div className="absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-accent opacity-20" />
         {/* Logo area */}
         <div>
-          <span className="font-display text-3xl font-bold text-white tracking-wide">
+          <span className="font-display text-3xl font-bold tracking-wide text-white">
             Castrol <span className="text-accent">FastScan</span>
           </span>
-          <span className="ml-3 rounded-md bg-white/20 px-2 py-0.5 text-sm font-semibold text-white">Field</span>
         </div>
         {/* Hero copy */}
         <div className="relative z-10">
@@ -75,7 +74,7 @@ export default function ManagerLogin() {
         {/* Mobile logo */}
         <div className="mb-8 md:hidden">
           <span className="font-display text-2xl font-bold text-brand tracking-wide">
-            Castrol <span className="text-accent">FastScan</span> Field
+            Castrol <span className="text-accent">FastScan</span>
           </span>
         </div>
         <form onSubmit={submit} className="mx-auto w-full max-w-sm space-y-5">

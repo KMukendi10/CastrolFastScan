@@ -22,7 +22,7 @@ export function Shell({ children, title, back, bleed }: { children: React.ReactN
           {back ? <Link href={back} className="grid min-h-11 min-w-11 place-items-center rounded-lg text-2xl transition-colors hover:bg-white/10 focus-visible:outline-white" aria-label="Back">‹</Link> : null}
           <div className="min-w-0">
             <Link href="/" className="font-display text-xl font-extrabold tracking-tight sm:text-2xl">
-              Castrol FastScan <span className="text-accent">Field</span>
+              Castrol <span className="text-accent">FastScan</span>
             </Link>
             {title && <span className="hidden pl-3 text-sm text-white/75 md:inline">{title}</span>}
           </div>
