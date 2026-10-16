@@ -22,7 +22,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ kind: st
 
     const table = kind === "mechanic" ? "mechanics" : "spares_shops";
     const idColumn = kind === "mechanic" ? "mechanic_id" : "shop_id";
-    const { data: record, error: recordError } = await admin.from(table)
+    const { data: rawRecord, error: recordError } = await admin.from(table)
       .select(`captured_by_user, deleted_at${kind === "mechanic" ? ", mechanic_email" : ""}`)
       .eq(idColumn, Number(id)).maybeSingle();
     if (recordError) {
@@ -32,6 +32,11 @@ export async function DELETE(req: Request, context: { params: Promise<{ kind: st
       }
       return Response.json({ error: "Could not check registration ownership." }, { status: 500 });
     }
+    const record = rawRecord as unknown as {
+      captured_by_user: string | null;
+      deleted_at: string | null;
+      mechanic_email?: string;
+    } | null;
     if (!record || record.deleted_at || (profile.role !== "manager" && record.captured_by_user !== user.id)) {
       return Response.json({ error: "Registration not found or you do not have permission to delete it." }, { status: 404 });
     }
