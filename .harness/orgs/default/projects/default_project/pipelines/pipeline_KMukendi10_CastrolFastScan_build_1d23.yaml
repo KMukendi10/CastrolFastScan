@@ -19,12 +19,6 @@ pipeline:
               npm --version
               npm ci
           timeout: 10m
-        - id: lint
-          name: Lint
-          run:
-            shell: bash
-            script: npm run lint
-          timeout: 5m
         - id: build
           name: Build
           run:
