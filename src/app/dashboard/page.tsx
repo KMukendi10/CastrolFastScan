@@ -103,10 +103,11 @@ function Dash() {
     const mechanicRows = (mechanics.data ?? []) as Record<string, unknown>[];
     const sparesRows = (spares.data ?? []) as Record<string, unknown>[];
     const columns = ["Record type", ...new Set([...mechanicRows, ...sparesRows].flatMap((row) => Object.keys(row)))];
-    const rows = [
+    const combinedRows: Record<string, unknown>[] = [
       ...mechanicRows.map((row) => ({ ...row, "Record type": "Mechanic" })),
       ...sparesRows.map((row) => ({ ...row, "Record type": "Spares shop" })),
-    ].map((row) => Object.fromEntries(columns.map((column) => [column, row[column]])));
+    ];
+    const rows = combinedRows.map((row) => Object.fromEntries(columns.map((column) => [column, row[column]])));
     downloadCsv(`castrol-fastscan-${todayISO()}.csv`, toCsv(rows));
   }
 
