@@ -30,6 +30,12 @@ export async function POST(req: Request) {
 
     const view = body.kind === "mechanic" ? "v_mechanic_flat" : "v_spares_latest";
     const idColumn = body.kind === "mechanic" ? "mechanic_id" : "shop_id";
+    const table = body.kind === "mechanic" ? "mechanics" : "spares_shops";
+    const { data: registration, error: registrationError } = await admin.from(table)
+      .select("deleted_at").eq(idColumn, body.recordId).maybeSingle();
+    if (registrationError || !registration || registration.deleted_at) {
+      return Response.json({ error: "This registration is no longer active and cannot be synced." }, { status: 404 });
+    }
     const { data: row, error: rowError } = await admin.from(view).select("*").eq(idColumn, body.recordId).maybeSingle();
     if (rowError || !row) {
       console.error("[sheets-sync] Saved row lookup failed", rowError?.code);

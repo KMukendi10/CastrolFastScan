@@ -7,7 +7,7 @@ import { ConsentBox } from "./ConsentBox";
 import { OtpVerification } from "./OtpVerification";
 
 export type MState = {
-  email: string; emailConfirm: string; first_name: string; surname: string; contact: string; contactConfirm: string; phoneVerified: boolean; alt: string; whatsapp: string;
+  email: string; emailConfirm: string; first_name: string; surname: string; contact: string; contactConfirm: string; phoneVerified: boolean; alt: string; whatsapp: string; whatsappSameAsPhone: boolean;
   language: string; years: string; training: string; specs: string[]; pays_rent: boolean | null;
   w_name: string; business_type: string; region: string; town: string; address: string; vehicles: string;
   branding: boolean | null; branding_notes: string;
@@ -19,7 +19,7 @@ export type MState = {
 };
 
 const empty = (): MState => ({
-  email: "", emailConfirm: "", first_name: "", surname: "", contact: "", contactConfirm: "", phoneVerified: false, alt: "", whatsapp: "", language: "", years: "", training: "",
+  email: "", emailConfirm: "", first_name: "", surname: "", contact: "", contactConfirm: "", phoneVerified: false, alt: "", whatsapp: "", whatsappSameAsPhone: true, language: "", years: "", training: "",
   specs: [], pays_rent: null, w_name: "", business_type: "", region: "", town: "", address: "", vehicles: "",
   branding: null, branding_notes: "", oil_brand: "", reason: "", channel: "", supplier: "", consent: false,
   lat: "", lon: "", acc: "", registered: null, first_scan: null, total_scans: "", kit: null, kit_items: "",
@@ -50,7 +50,11 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         if (!toE164(s.contact)) e.contact = "Enter a cell number. Example: 082 123 4567";
         else if (toE164(s.contact) !== toE164(s.contactConfirm)) e.contactConfirm = "Cell numbers do not match";
         else if (!s.phoneVerified) e.contact = "Verify this cell number using the SMS code below";
-        optPhone(s.alt, "alt", e); optPhone(s.whatsapp, "whatsapp", e);
+        optPhone(s.alt, "alt", e);
+        if (!s.whatsappSameAsPhone) {
+          if (!s.whatsapp.trim()) e.whatsapp = "Enter the WhatsApp number, or confirm it matches the cell number";
+          else optPhone(s.whatsapp, "whatsapp", e);
+        }
         if (s.years && !(Number(s.years) >= 0 && Number(s.years) <= 70)) e.years = "Enter years between 0 and 70";
         return e;
       },
@@ -68,7 +72,24 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
             </div>
             <div><Field label="Cell number" required error={e.contact}><TextInput type="tel" inputMode="tel" value={s.contact} onChange={(x) => set({ contact: x.target.value, phoneVerified: false })} /></Field><OtpVerification key={`${submissionId}:phone:${toE164(s.contact) ?? s.contact}`} submissionId={submissionId} kind="phone" contact={toE164(s.contact) ?? ""} verified={s.phoneVerified} onVerified={(phoneVerified) => set({ phoneVerified })} /></div>
             <Field label="Confirm cell number" required error={e.contactConfirm}><TextInput type="tel" inputMode="tel" value={s.contactConfirm} onChange={(x) => set({ contactConfirm: x.target.value })} /></Field>
-            <Field label="WhatsApp number" hint="Leave empty if it is the same" error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>
+            <div className="md:col-span-2 rounded-xl border-2 border-line p-4">
+              <div className="flex items-start gap-3">
+                <input
+                  id={`whatsapp-same-as-cell-${kind}`}
+                  type="checkbox"
+                  checked={s.whatsappSameAsPhone !== false}
+                  onChange={(event) => set({ whatsappSameAsPhone: event.target.checked, ...(event.target.checked ? { whatsapp: "" } : {}) })}
+                  className="mt-1 h-5 w-5 shrink-0 accent-brand"
+                />
+                <label htmlFor={`whatsapp-same-as-cell-${kind}`} className="cursor-pointer">
+                  <span className="block font-semibold">WhatsApp number is the same as the cell number</span>
+                  <span className="mt-1 block text-sm text-muted">We’ll use the verified cell number for WhatsApp. Untick this if WhatsApp uses a different number.</span>
+                </label>
+              </div>
+              {!s.whatsappSameAsPhone && <div className="mt-4">
+                <Field label="WhatsApp number" required error={e.whatsapp}><TextInput type="tel" inputMode="tel" value={s.whatsapp} onChange={(x) => set({ whatsapp: x.target.value })} /></Field>
+              </div>}
+            </div>
             <Field label="Another number to reach you" hint="Optional" error={e.alt}><TextInput type="tel" inputMode="tel" value={s.alt} onChange={(x) => set({ alt: x.target.value })} /></Field>
             <Field label="Preferred language"><Select value={s.language} onChange={(v) => set({ language: v })} options={LANGUAGES} /></Field>
             <Field label="Years of experience" error={e.years}><TextInput type="number" inputMode="decimal" min={0} max={70} value={s.years} onChange={(x) => set({ years: x.target.value })} /></Field>
@@ -156,7 +177,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         mechanic: {
           email: s.email.trim().toLowerCase(), first_name: s.first_name.trim(), surname: s.surname.trim(),
           contact_number: toE164(s.contact), alternative_contact: s.alt.trim() ? toE164(s.alt) : undefined,
-          whatsapp_number: s.whatsapp.trim() ? toE164(s.whatsapp) : undefined,
+          whatsapp_number: s.whatsappSameAsPhone !== false ? toE164(s.contact) : toE164(s.whatsapp),
           preferred_language: n(s.language), experience_years: s.years ? Number(s.years) : undefined,
           training_background: n(s.training), specialisations: s.specs,
           ...(independent && s.pays_rent !== null ? { pays_rent: s.pays_rent } : {}),

@@ -45,23 +45,31 @@ async function syncKind(kind: "mechanic" | "spares", endpoint: string, secret: s
     return { syncedCount: 0, skippedCount: 0, failedCount: 0, error: "Could not load saved rows for the sheet." };
   }
   const records = (data ?? []).map((row: Record<string, unknown>) => ({ recordId: row[idColumn], row }));
-  if (!records.length) return { syncedCount: 0, skippedCount: 0, failedCount: 0 };
+  const table = kind === "mechanic" ? "mechanics" : "spares_shops";
+  const { data: deleted, error: deletedError } = await admin.from(table).select(idColumn).not("deleted_at", "is", null);
+  if (deletedError) {
+    console.error("[sheets-sync-batch] Could not check deleted rows", deletedError.code);
+    return { syncedCount: 0, skippedCount: 0, failedCount: 0, error: "Could not check registration deletion status." };
+  }
+  const deletedIds = new Set((deleted ?? []).map((row: Record<string, unknown>) => Number(row[idColumn])));
+  const activeRecords = records.filter((record) => !deletedIds.has(Number(record.recordId)));
+  if (!activeRecords.length) return { syncedCount: 0, skippedCount: 0, failedCount: 0 };
 
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ secret, kind, records, restoreMissing }),
+    body: JSON.stringify({ secret, kind, records: activeRecords, restoreMissing }),
     cache: "no-store",
   });
   const result = await response.json().catch(() => null) as {
     synced?: boolean; syncedCount?: number; skippedCount?: number; failedCount?: number; errors?: string[]; error?: string;
   } | null;
-  if (!response.ok || !result) return { syncedCount: 0, skippedCount: 0, failedCount: records.length, error: result?.error ?? "Google Sheets could not process the sync." };
+  if (!response.ok || !result) return { syncedCount: 0, skippedCount: 0, failedCount: activeRecords.length, error: result?.error ?? "Google Sheets could not process the sync." };
   if (result.failedCount || !result.synced) {
     return {
       syncedCount: result.syncedCount ?? 0,
       skippedCount: result.skippedCount ?? 0,
-      failedCount: result.failedCount ?? records.length,
+      failedCount: result.failedCount ?? activeRecords.length,
       error: result.error ?? result.errors?.[0] ?? "Google Sheets could not sync some saved rows.",
     };
   }

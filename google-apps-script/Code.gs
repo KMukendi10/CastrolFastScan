@@ -35,6 +35,13 @@ function doPost(e) {
       if (!sheet) throw new Error("Could not find the WhatsApp Import tab.");
       const columns = headerColumns_(sheet);
       const syncState = getSyncState_(spreadsheet, sheet, columns);
+      if (request.action === "delete") {
+        if (request.kind !== "mechanic") throw new Error("Only mechanic registrations can be removed from WhatsApp Import.");
+        const email = String(request.mechanicEmail || "").trim().toLowerCase();
+        if (!email) throw new Error("A mechanic email reference is required to remove the row.");
+        const deleted = deleteMechanic_(sheet, columns, syncState, email);
+        return json_({ deleted: true, removedCount: deleted });
+      }
       const records = Array.isArray(request.records) ? request.records : [request];
       let syncedCount = 0;
       let skippedCount = 0;
@@ -117,6 +124,9 @@ function syncMechanic_(sheet, columns, record, restoreMissing, syncState) {
   }
 
   const stateKey = "mechanic-email|" + mechanicId;
+  if (syncState.deleted.has(stateKey)) {
+    return { skipped: true, reason: "This registration was deleted and will not be restored by sync." };
+  }
   if (targetIndex < 0 && syncState.ids.has(stateKey) && !restoreMissing) {
     return { skipped: true, reason: "This previously synced row was removed from the workbook." };
   }
@@ -189,7 +199,30 @@ function getSyncState_(spreadsheet, importSheet, columns) {
   if (sheet.getLastRow() < 1) sheet.getRange(1, 1, 1, 2).setValues([["sync_key", "synced_at"]]);
   const lastRow = sheet.getLastRow();
   const keys = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues().flat() : [];
-  return { sheet: sheet, ids: new Set(keys) };
+  const deletedKeys = keys.filter(function (key) { return String(key).indexOf("deleted|") === 0; })
+    .map(function (key) { return String(key).slice("deleted|".length); });
+  return { sheet: sheet, ids: new Set(keys), deleted: new Set(deletedKeys) };
+}
+
+function deleteMechanic_(sheet, columns, syncState, mechanicEmail) {
+  const lastRow = Math.max(sheet.getLastRow(), FIRST_DATA_ROW - 1);
+  const count = Math.max(0, lastRow - FIRST_DATA_ROW + 1);
+  const ids = count ? sheet.getRange(FIRST_DATA_ROW, columns["Mechanic ID"], count, 1).getDisplayValues().flat() : [];
+  const matches = [];
+  ids.forEach(function (id, index) {
+    if (String(id || "").trim().toLowerCase() === mechanicEmail) matches.push(FIRST_DATA_ROW + index);
+  });
+  if (matches.length > 1) throw new Error("More than one WhatsApp Import row has this Mechanic ID. Ask a manager to review the workbook.");
+  if (matches.length === 1) sheet.deleteRow(matches[0]);
+
+  const stateKey = "mechanic-email|" + mechanicEmail;
+  const deletedKey = "deleted|" + stateKey;
+  if (!syncState.ids.has(deletedKey)) {
+    syncState.sheet.appendRow([deletedKey, new Date().toISOString()]);
+    syncState.ids.add(deletedKey);
+    syncState.deleted.add(stateKey);
+  }
+  return matches.length;
 }
 
 function rememberSynced_(state, key) {
