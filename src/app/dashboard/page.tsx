@@ -45,7 +45,7 @@ function PreviewTable({ title, rows }: { title: string; rows: Record<string, unk
 }
 
 function Dash() {
-  const googleSheetUrl = process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL;
+  const googleSheetUrl = "https://docs.google.com/spreadsheets/d/1KosBOc_PhucddXW8bvAe1Cc3C48S-kEJirKXoFT6nGY/edit";
   const [reps, setReps] = useState<Rep[] | null>(null);
   const [days, setDays] = useState<Day[]>([]);
   const [err, setErr] = useState("");
@@ -164,14 +164,14 @@ function Dash() {
             <Button variant="ghost" disabled={!!busy} onClick={() => void syncAllToLiveSheet(true)}>
               {busy === "restore-missing" ? "Restoring missing records..." : "Restore missing records"}
             </Button>
-            {googleSheetUrl && <a
+            <a
               href={googleSheetUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="min-h-14 rounded-xl border-2 border-line bg-card px-6 text-lg font-semibold flex items-center hover:border-brand hover:bg-brand hover:text-white transition-all duration-150"
             >
-              Open WhatsApp Import sheet
-            </a>}
+              Open live sheet
+            </a>
           </div>
           {sheetSyncMsg && <p className="w-full text-sm font-semibold text-brand">{sheetSyncMsg}</p>}
           <p className="w-full text-sm text-muted">Normal sync adds new records and updates rows that remain in the sheet. Rows you delete stay deleted; use “Restore missing records” only when you want them back.</p>
