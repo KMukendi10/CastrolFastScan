@@ -47,6 +47,7 @@ function doPost(e) {
       let skippedCount = 0;
       const skippedReasons = [];
       const errors = [];
+      const writtenRows = [];
 
       records.forEach(function (record) {
         try {
@@ -56,6 +57,7 @@ function doPost(e) {
             if (skippedReasons.length < 5) skippedReasons.push(result.reason);
           } else {
             syncedCount++;
+            writtenRows.push(result.rowNumber);
           }
         } catch (error) {
           if (errors.length < 5) errors.push(error && error.message ? error.message : "Could not write a row.");
@@ -69,7 +71,10 @@ function doPost(e) {
         skippedReasons: skippedReasons,
         failedCount: failedCount,
         errors: errors,
+        spreadsheetName: spreadsheet.getName(),
+        spreadsheetUrl: spreadsheet.getUrl(),
         tab: IMPORT_TAB,
+        writtenRows: writtenRows,
       });
     } finally {
       lock.releaseLock();
@@ -151,7 +156,7 @@ function syncMechanic_(sheet, columns, record, restoreMissing, syncState) {
   const targetRow = targetIndex >= 0 ? FIRST_DATA_ROW + targetIndex : Math.max(FIRST_DATA_ROW, lastRow + 1);
   writeMappedRow_(sheet, targetRow, columns, valuesByHeader);
   rememberSynced_(syncState, stateKey);
-  return { skipped: false };
+  return { skipped: false, rowNumber: targetRow };
 }
 
 function dateOnly_(value) {

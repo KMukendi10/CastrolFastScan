@@ -1,7 +1,16 @@
 import { requireManager, supabaseAdmin } from "@/lib/supabase-admin";
 
 type BatchRequest = { kind?: "mechanic"; restoreMissing?: boolean };
-type KindResult = { syncedCount: number; skippedCount: number; failedCount: number; tab?: string; error?: string };
+type KindResult = {
+  syncedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  tab?: string;
+  spreadsheetName?: string;
+  spreadsheetUrl?: string;
+  writtenRows?: number[];
+  error?: string;
+};
 
 export async function POST(req: Request) {
   try {
@@ -28,7 +37,15 @@ export async function POST(req: Request) {
     if (failedCount || syncError) {
       return Response.json({ mechanicsSynced, skippedCount, failedCount, error: syncError ?? `Some rows failed to sync (${failedCount}). Retry to try again.` }, { status: 502 });
     }
-    return Response.json({ mechanicsSynced, skippedCount, failedCount: 0 });
+    return Response.json({
+      mechanicsSynced,
+      skippedCount,
+      failedCount: 0,
+      tab: results.mechanic?.tab,
+      spreadsheetName: results.mechanic?.spreadsheetName,
+      spreadsheetUrl: results.mechanic?.spreadsheetUrl,
+      writtenRows: results.mechanic?.writtenRows,
+    });
   } catch (error) {
     console.error("[sheets-sync-batch] Sync request failed", error instanceof Error ? error.message : "unknown error");
     return Response.json({ error: "Could not sync saved records to Google Sheets." }, { status: 502 });
@@ -62,9 +79,34 @@ async function syncKind(kind: "mechanic" | "spares", endpoint: string, secret: s
     cache: "no-store",
   });
   const result = await response.json().catch(() => null) as {
-    synced?: boolean; syncedCount?: number; skippedCount?: number; failedCount?: number; errors?: string[]; error?: string;
+    synced?: boolean;
+    syncedCount?: number;
+    skippedCount?: number;
+    failedCount?: number;
+    errors?: string[];
+    error?: string;
+    tab?: string;
+    spreadsheetName?: string;
+    spreadsheetUrl?: string;
+    writtenRows?: number[];
   } | null;
   if (!response.ok || !result) return { syncedCount: 0, skippedCount: 0, failedCount: activeRecords.length, error: result?.error ?? "Google Sheets could not process the sync." };
+  if (
+    typeof result.syncedCount !== "number" ||
+    typeof result.skippedCount !== "number" ||
+    typeof result.failedCount !== "number" ||
+    result.tab !== "WhatsApp Import" ||
+    typeof result.spreadsheetName !== "string" ||
+    typeof result.spreadsheetUrl !== "string" ||
+    !Array.isArray(result.writtenRows)
+  ) {
+    return {
+      syncedCount: 0,
+      skippedCount: 0,
+      failedCount: activeRecords.length,
+      error: "The Apps Script deployment is outdated. Update it to the latest Code.gs, create a new deployment version, then sync again.",
+    };
+  }
   if (result.failedCount || !result.synced) {
     return {
       syncedCount: result.syncedCount ?? 0,
@@ -73,5 +115,13 @@ async function syncKind(kind: "mechanic" | "spares", endpoint: string, secret: s
       error: result.error ?? result.errors?.[0] ?? "Google Sheets could not sync some saved rows.",
     };
   }
-  return { syncedCount: result.syncedCount ?? records.length, skippedCount: result.skippedCount ?? 0, failedCount: 0 };
+  return {
+    syncedCount: result.syncedCount,
+    skippedCount: result.skippedCount,
+    failedCount: 0,
+    tab: result.tab,
+    spreadsheetName: result.spreadsheetName,
+    spreadsheetUrl: result.spreadsheetUrl,
+    writtenRows: result.writtenRows,
+  };
 }

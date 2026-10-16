@@ -50,6 +50,7 @@ function Dash() {
   const [days, setDays] = useState<Day[]>([]);
   const [err, setErr] = useState("");
   const [sheetSyncMsg, setSheetSyncMsg] = useState("");
+  const [sheetSyncDestination, setSheetSyncDestination] = useState<{ name: string; url: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
 
@@ -107,7 +108,7 @@ function Dash() {
 
   async function syncAllToLiveSheet(restoreMissing = false) {
     if (restoreMissing && !window.confirm("Restore records that were previously synced but are now missing from the sheet? This will add those rows back from Supabase.")) return;
-    setBusy(restoreMissing ? "restore-missing" : "sync-all"); setErr(""); setSheetSyncMsg(""); setSheetPreview(null);
+    setBusy(restoreMissing ? "restore-missing" : "sync-all"); setErr(""); setSheetSyncMsg(""); setSheetSyncDestination(null); setSheetPreview(null);
     try {
       const { data: { session } } = await supabase().auth.getSession();
       if (!session?.access_token) throw new Error("Your session has expired. Sign in again.");
@@ -116,10 +117,22 @@ function Dash() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ kind: "mechanic", restoreMissing }),
       });
-      const result = await response.json() as { mechanicsSynced?: number; skippedCount?: number; error?: string };
+      const result = await response.json() as {
+        mechanicsSynced?: number;
+        skippedCount?: number;
+        tab?: string;
+        spreadsheetName?: string;
+        spreadsheetUrl?: string;
+        writtenRows?: number[];
+        error?: string;
+      };
       if (!response.ok) throw new Error(result.error ?? "Google Sheet sync failed.");
       const skipped = result.skippedCount ?? 0;
-      setSheetSyncMsg(`Synced ${result.mechanicsSynced ?? 0} eligible mechanic(s) to WhatsApp Import.${skipped ? ` Skipped ${skipped} ineligible, duplicate, or previously removed record(s).` : ""}`);
+      const rows = result.writtenRows?.length ? ` Row(s): ${result.writtenRows.join(", ")}.` : "";
+      setSheetSyncMsg(`Wrote or updated ${result.mechanicsSynced ?? 0} mechanic row(s) in ${result.spreadsheetName ?? "the target spreadsheet"} → ${result.tab ?? "WhatsApp Import"}.${rows}${skipped ? ` Skipped ${skipped} ineligible, duplicate, or previously removed record(s).` : ""}`);
+      if (result.spreadsheetName && result.spreadsheetUrl) {
+        setSheetSyncDestination({ name: result.spreadsheetName, url: result.spreadsheetUrl });
+      }
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Could not sync to the live Google Sheet.");
     } finally {
@@ -174,6 +187,11 @@ function Dash() {
             </a>
           </div>
           {sheetSyncMsg && <p className="w-full text-sm font-semibold text-brand">{sheetSyncMsg}</p>}
+          {sheetSyncDestination && (
+            <p className="w-full text-sm">
+              Sync destination: <a className="font-semibold underline" href={sheetSyncDestination.url} target="_blank" rel="noopener noreferrer">Open {sheetSyncDestination.name}</a>
+            </p>
+          )}
           <p className="w-full text-sm text-muted">Normal sync adds new records and updates rows that remain in the sheet. Rows you delete stay deleted; use “Restore missing records” only when you want them back.</p>
           <div className="w-full">
             <Button variant="ghost" disabled={!!busy} onClick={() => void previewSheet()}>
