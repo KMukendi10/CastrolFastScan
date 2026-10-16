@@ -13,7 +13,7 @@ function Inner({ kind }: { kind: Kind }) {
   const searchParams = useSearchParams();
   const fresh = searchParams.get("fresh") ?? "initial";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const flow: any = useMemo(() => (kind === "spares" ? sparesFlow() : mechanicFlow(kind)), [kind]);
+  const flow: any = useMemo(() => (kind === "spares" ? sparesFlow() : mechanicFlow()), [kind]);
   return (
     <Shell back="/" bleed>
       <Wizard key={fresh} flow={flow} draftKey={`draft:${p.id}:${kind}`} label={KIND_LABEL[kind]} />

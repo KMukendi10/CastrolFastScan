@@ -1,5 +1,5 @@
 import { Chips, Choice, Field, Select, TextArea, TextInput, YesNo } from "@/components/ui";
-import { LANGUAGES, VEHICLES, CONSENT_TEXT, CONSENT_VERSION, type Kind } from "@/lib/options";
+import { LANGUAGES, VEHICLES, CONSENT_TEXT, CONSENT_VERSION } from "@/lib/options";
 import { emailOk, normalizeGps, toE164, todayISO } from "@/lib/format";
 import type { Flow, Step } from "./types";
 import { GpsField } from "./GpsField";
@@ -34,8 +34,10 @@ const emailMatchStatus = (email: string, confirmation: string) => {
   return emailOk(email) ? "match" : null;
 };
 
-export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
-  const independent = kind === "independent_mechanic";
+const isIndependentBusinessType = (businessType: string) =>
+  ["independent mechanic", "independent workshop"].includes(businessType.trim().toLowerCase());
+
+export function mechanicFlow(): Flow<MState> {
 
   const steps: Step<MState>[] = [
     {
@@ -75,13 +77,13 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
             <div className="md:col-span-2 rounded-xl border-2 border-line p-4">
               <div className="flex items-start gap-3">
                 <input
-                  id={`whatsapp-same-as-cell-${kind}`}
+                  id="whatsapp-same-as-cell"
                   type="checkbox"
                   checked={s.whatsappSameAsPhone !== false}
                   onChange={(event) => set({ whatsappSameAsPhone: event.target.checked, ...(event.target.checked ? { whatsapp: "" } : {}) })}
                   className="mt-1 h-5 w-5 shrink-0 accent-brand"
                 />
-                <label htmlFor={`whatsapp-same-as-cell-${kind}`} className="cursor-pointer">
+                <label htmlFor="whatsapp-same-as-cell" className="cursor-pointer">
                   <span className="block font-semibold">WhatsApp number is the same as the cell number</span>
                   <span className="mt-1 block text-sm text-muted">We’ll use the verified cell number for WhatsApp. Untick this if WhatsApp uses a different number.</span>
                 </label>
@@ -113,13 +115,13 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
         <>
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Workshop name" required error={e.w_name}><TextInput value={s.w_name} onChange={(x) => set({ w_name: x.target.value })} /></Field>
-            <Field label="Business type" required error={e.business_type}><Select value={s.business_type} onChange={(v) => set({ business_type: v })} options={lk.businessTypes} /></Field>
+            <Field label="Business type" hint="Choose Independent Mechanic or Independent Workshop if either applies." required error={e.business_type}><Select value={s.business_type} onChange={(v) => set({ business_type: v })} options={lk.businessTypes} /></Field>
             <Field label="Region" required error={e.region}><Select value={s.region} onChange={(v) => set({ region: v })} options={lk.regions} /></Field>
             <Field label="Town or suburb"><TextInput value={s.town} onChange={(x) => set({ town: x.target.value })} /></Field>
           </div>
           <Field label="Street address"><TextInput value={s.address} onChange={(x) => set({ address: x.target.value })} /></Field>
           <Field label="Vehicles serviced per day"><Choice value={s.vehicles} onChange={(v) => set({ vehicles: v })} options={VEHICLES} /></Field>
-          {independent && <Field label="Do you pay rent for your space?"><YesNo value={s.pays_rent} onChange={(v) => set({ pays_rent: v })} /></Field>}
+          {isIndependentBusinessType(s.business_type) && <Field label="Do you pay rent for your space?"><YesNo value={s.pays_rent} onChange={(v) => set({ pays_rent: v })} /></Field>}
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Main oil brand you use"><TextInput value={s.oil_brand} onChange={(x) => set({ oil_brand: x.target.value })} /></Field>
             <Field label="Why that brand?"><TextInput value={s.reason} onChange={(x) => set({ reason: x.target.value })} /></Field>
@@ -172,7 +174,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
       const today = todayISO();
       return {
         client_submission_id: id,
-        database: kind,
+        database: isIndependentBusinessType(s.business_type) ? "independent_mechanic" : "mechanics_profile",
         captured_at: new Date().toISOString(),
         mechanic: {
           email: s.email.trim().toLowerCase(), first_name: s.first_name.trim(), surname: s.surname.trim(),
@@ -180,7 +182,7 @@ export function mechanicFlow(kind: Exclude<Kind, "spares">): Flow<MState> {
           whatsapp_number: s.whatsappSameAsPhone !== false ? toE164(s.contact) : toE164(s.whatsapp),
           preferred_language: n(s.language), experience_years: s.years ? Number(s.years) : undefined,
           training_background: n(s.training), specialisations: s.specs,
-          ...(independent && s.pays_rent !== null ? { pays_rent: s.pays_rent } : {}),
+          ...(isIndependentBusinessType(s.business_type) && s.pays_rent !== null ? { pays_rent: s.pays_rent } : {}),
         },
         workshop: {
           name: s.w_name.trim(), business_type: s.business_type, region: s.region,

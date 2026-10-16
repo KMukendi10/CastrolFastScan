@@ -5,17 +5,17 @@ import { sparesFlow } from "../src/components/wizard/sparesFlow";
 
 const out: Record<string, unknown> = {};
 for (const kind of ["mechanics_profile", "independent_mechanic"] as const) {
-  const f = mechanicFlow(kind);
+  const f = mechanicFlow();
   const s = {
     ...f.initial(), email: `${kind}@example.com`, first_name: "Thabo", surname: "Mokoena", contact: "082 123 4567", alt: "0719876543",
     whatsapp: "", language: "isiZulu", years: "12", training: "Apprentice Mechanic", specs: ["Engine Repairs"], pays_rent: kind === "independent_mechanic" ? true : null,
-    w_name: "Thabo Auto", business_type: "Independent Mechanic", region: "Gauteng North", town: "Alexandra", address: "14 London Rd", vehicles: "6-10",
+    w_name: "Thabo Auto", business_type: kind === "independent_mechanic" ? "Independent Mechanic" : "Mechanical Workshop", region: "Gauteng North", town: "Alexandra", address: "14 London Rd", vehicles: "6-10",
     branding: true, branding_notes: "Front wall", oil_brand: "Castrol", reason: "Asked for", channel: "Distributors/Wholesalers", supplier: "Alex Parts",
     consent: true, lat: "-26.1034", lon: "28.0961", acc: "9", registered: true, first_scan: true, total_scans: "3", kit: true, kit_items: "Cap, shirt", incentive: false, not_scanning: "", fs_notes: "ok",
   };
   for (const st of f.steps) if (Object.keys(st.validate(s)).length) throw new Error(kind + " step " + st.id + " invalid");
   out[kind] = f.toPayload(s, crypto.randomUUID());
-  const minimal = { ...f.initial(), email: `min-${kind}@example.com`, first_name: "A", surname: "B", contact: "0821234567", w_name: "W", business_type: "Independent Mechanic", region: "Gauteng East" };
+  const minimal = { ...f.initial(), email: `min-${kind}@example.com`, first_name: "A", surname: "B", contact: "0821234567", w_name: "W", business_type: kind === "independent_mechanic" ? "Independent Mechanic" : "Mechanical Workshop", region: "Gauteng East" };
   for (const st of f.steps) if (Object.keys(st.validate(minimal)).length) throw new Error("minimal " + kind + " " + st.id);
   out["min_" + kind] = f.toPayload(minimal, crypto.randomUUID());
 }

@@ -27,8 +27,7 @@ function Home() {
   }, [p.id]);
 
   const tiles: { href: string; title: string; sub: string }[] = [
-    { href: "/capture/mechanics_profile", title: "Mechanic profile", sub: "Mechanic at a workshop or dealer" },
-    { href: "/capture/independent_mechanic", title: "Independent mechanic", sub: "Own workshop, yard or home garage" },
+    { href: "/capture/mechanics_profile", title: "Mechanic profile", sub: "Workshop, dealer or independent mechanic" },
     { href: "/capture/spares", title: "Spares shop", sub: "Visit and shelf audit" },
   ];
 
@@ -45,7 +44,7 @@ function Home() {
         <h2 className="font-display text-2xl font-extrabold">Start a capture</h2>
         <p className="mt-1 text-muted">Choose the type of contact you are visiting.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {tiles.map((t) => (
           <Link
             key={t.href}
